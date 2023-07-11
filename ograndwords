@@ -1,0 +1,15 @@
+#!/usr/bin/bash
+
+allWordsTxt=/usr/share/dict/words
+numOfPossibleWords=$(wc -l $allWordsTxt | cut -d ' ' -f 1)
+outputWordCount=$([[ $# -lt 1 ]] && echo 1 || echo $1) # work around for ternary operator
+
+if [[ $outputWordCount -gt 1 ]]
+then
+	echo $'NOTE: If you don\'t want to allow for repeated words remove "--repeat" from the "shuf" command' 1>&2
+fi
+
+while read -r randWordLineNum
+do
+	tail -n +$randWordLineNum $allWordsTxt | head -n 1
+done < <(shuf --input-range=1-$numOfPossibleWords --head-count=$outputWordCount --repeat) #remove repeat to ensure no duplicate words. NOTE, at max, will output $numOfPossibleWords number of words
