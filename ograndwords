@@ -2,18 +2,12 @@
 
 wordsFile=/usr/share/dict/words
 numOfUniqueWords=$(wc -l $wordsFile | cut -d ' ' -f 1)
-userWordCountOutputRequest=$([[ $# -lt 1 ]] && echo 1 || echo $1) # work around for ternary operator
+userOutputWordCountRequest=$([[ $# -lt 1 ]] && echo 1 || echo $1) # work around for ternary operator
 
-if [[ userWordCountOutputRequest -gt numOfUniqueWords ]]
+if [[ userOutputWordCountRequest -gt numOfUniqueWords ]]
 then
 	echo "NOTE, there WILL be repeate words in the output! Max non repeat size = $numOfUniqueWords words" 1>&2
+	shuf -n $userOutputWordCountRequest --repeat $wordsFile #--repeat necessary or else will be limited to a max output word count of numOfUniqueWords
+else
+	shuf -n $userOutputWordCountRequest $wordsFile
 fi
-
-wordsLeftToOutput=$userWordCountOutputRequest
-while [[ wordsLeftToOutput -gt numOfUniqueWords ]]
-do
-	shuf $wordsFile
-	let wordsLeftToOutput-=$numOfUniqueWords
-done
-
-shuf -n $wordsLeftToOutput $wordsFile
