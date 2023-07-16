@@ -2,7 +2,7 @@
 
 wordsFile=/usr/share/dict/words
 numOfUniqueWords=$(wc -l $wordsFile | cut -d ' ' -f 1)
-userOutputWordCountRequest=$([[ $# -lt 1 ]] && echo 1 || echo $1) # work around for ternary operator
+userOutputWordCountRequest=${1:-1} # default values if $1 is empty, https://unix.stackexchange.com/questions/338146/bash-defining-variables-with-var-number-default
 
 if [[ userOutputWordCountRequest -gt numOfUniqueWords ]]
 then
