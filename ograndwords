@@ -7,7 +7,7 @@ userOutputWordCountRequest=${1:-1} # default values if $1 is empty, https://unix
 if [[ userOutputWordCountRequest -gt numOfUniqueWords ]]
 then
 	echo "NOTE, there WILL be repeate words in the output! Max non repeat size = $numOfUniqueWords words" 1>&2
-	shuf -n $userOutputWordCountRequest --repeat $wordsFile #--repeat necessary or else will be limited to a max output word count of numOfUniqueWords
+	shuf -n "$userOutputWordCountRequest" --repeat $wordsFile #--repeat necessary or else will be limited to a max output word count of numOfUniqueWords
 else
-	shuf -n $userOutputWordCountRequest $wordsFile
+	shuf -n "$userOutputWordCountRequest" $wordsFile
 fi
