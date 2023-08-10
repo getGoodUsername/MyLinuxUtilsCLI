@@ -10,3 +10,8 @@ need random english words? use this. you can either get one word with no argumen
 
 ## ogpasswordgen
 quickly make a random password of 'n' characters and optionally also can send a second argument to specify any other special characters to be used other than the standard alphanumeric characters ('^%#$#!@', etc.)
+
+## ogpassphrasegen
+just like ogpasswordgen except now you are making a passphrase. The first
+arguement decides how many words in the phrase you would like and the second
+argument determines the word seperator in the phrase.
