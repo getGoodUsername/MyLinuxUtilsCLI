@@ -14,7 +14,7 @@ fi
 
 baseName=$1
 sshKeyDirWithPossibleTrailingSlash=${2:-~/.ssh}
-sshKeyDir=$(sed 's/\/*$//' <<< $sshKeyDirWithPossibleTrailingSlash)
+sshKeyDir=$(sed 's/\/*$//' <<< "${sshKeyDirWithPossibleTrailingSlash}")
 # sed pattern matches an unlimited of forward slashes at the end of the string and
 	# replaces them with nothing; thereby eliminating them. The pattern looks weird since
 	# I have to escape the forward slash since '/' is a special char for sed
@@ -32,4 +32,4 @@ sshKeyDir=$(sed 's/\/*$//' <<< $sshKeyDirWithPossibleTrailingSlash)
 	# -f just details the file name of the key.
 	# -C allows you to add a comment to your key if your would like
 
-ssh-keygen -o -a 100 -t ed25519 -f ${sshKeyDir}/$baseName
+ssh-keygen -o -a 100 -t ed25519 -f "${sshKeyDir}"/"${baseName}"
