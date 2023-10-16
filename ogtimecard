@@ -20,7 +20,7 @@ if [[ $# -eq 0 ]]; then
 } 1>&2
 fi
 
-todoDir="${TODO_TRACKER_DIR}"
+todoDir="${TODO_TRACKER_DIR}" # enviorment variable
 todaysFileName="$(date +'%F-%a').txt"
 fullFileName="${todoDir}/${todaysFileName}"
 
