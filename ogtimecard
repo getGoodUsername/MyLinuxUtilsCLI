@@ -1,27 +1,65 @@
 #!/usr/bin/bash
 
+function getSeperator()
+{
+    declare -Ar seperatorMapToIndex=( [-]=0 [+]=1 [\`]=2 [/]=3)
+    local seperatorArray=(- + \` /)
+    local prevSeperator="$1"
+    local prevSeperatorIndex=${seperatorMapToIndex[${prevSeperator}]};
+    local nextIndex=$(( ( $prevSeperatorIndex + 1 ) % 4 ))
+
+    echo "${seperatorArray[${nextIndex}]}"
+}
+
+function makeSeperator()
+{
+	local repeatString="$1"
+	local count="$2"
+	yes "${repeatString}" | head -n "${count}" | paste -s -d ''
+}
+
 function generateTrackableEvent()
 {
     # assume will only run this function after program checking
     # if at least a taskname has been given
-    taskName="$1"
-    optionalDescription="$2"
+    local taskName="$1"
+    local optionalDescription="$2"
+    local sepChar="$3"
+    local sepLength="$4"
+
     echo "$(date +'%T') - ${taskName}"
-    [ -n "${optionalDescription}" ] &&  echo "${optionalDescription}" | sed 's/^/\t/'
-    yes '-' | head -n 80 | paste -s -d '' # seperator bewteen tasks
+    [ -n "${optionalDescription}" ] && echo "${optionalDescription}" | sed 's/^/\t/'
+    makeSeperator "${sepChar}" "${sepLength}"
 }
 
-if [[ $# -eq 0 ]]; then
+function getTodayFilename()
 {
-    echo 'Please provide task name!'
-    echo "usage: $0 '<task name>' '<optional description>'"
-    echo "Note the usage of ''. Used to process collection of words as one word"
-    exit 1
-} 1>&2
-fi
+	todoDir="${TODO_TRACKER_DIR}" # enviorment variable
+	todaysFileName="$(date +'%F-%a').txt"
+	echo "${todoDir}/${todaysFileName}"
+}
 
-todoDir="${TODO_TRACKER_DIR}" # enviorment variable
-todaysFileName="$(date +'%F-%a').txt"
-fullFileName="${todoDir}/${todaysFileName}"
+function main()
+{
 
-generateTrackableEvent "$1" "$2" >> "${fullFileName}"
+    if [[ $# -eq 0 ]]; then
+    {
+        echo 'Please provide task name!'
+        echo "usage: $0 '<task name>' '<optional description>'"
+        echo "Note the usage of ''. Used to process collection of words as one word"
+        exit 1
+    } 1>&2
+    fi
+
+    readonly SEPERATOR_LENGTH=65
+    local taskName="$1"
+    local optionalDescription="$2"
+    local todayFname="$(getTodayFilename)"
+    local prevTaskSeperator=$([ -f "${todayFname}" ] && echo '-' || tail -1 "${todayFname}" | cut -b '1');
+
+    generateTrackableEvent "${taskName}" "${optionalDescription}" \
+        "$(getSeperator "${prevTaskSeperator}")" \
+        "${SEPERATOR_LENGTH}" >> "${todayFname}"
+}
+
+main "$@"
