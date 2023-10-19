@@ -33,7 +33,7 @@ function generateTrackableEvent()
     local -r optionalDescription="$2"
     local -r sepLength="$3"
     local -r maxTaskNameLength=$(( sepLength * 65 / 100 ))
-    local -r maxDescriptionLength=$(( sepLength * 80 / 100 ))
+    local -r maxDescriptionLength=$(( sepLength * 75 / 100 ))
     local -r colorTimeName="$(tput setaf 181)"
     local -r colorTaskName="$(tput setaf 168)"
     local -r colorDescriptionName="$(tput setaf 255)"
