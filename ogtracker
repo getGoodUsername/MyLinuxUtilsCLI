@@ -34,7 +34,7 @@ function generateTrackableEvent()
     local -r sepLength="$3"
     local -r maxTaskNameLength=$(( sepLength * 65 / 100 ))
     local -r maxDescriptionLength=$(( sepLength * 80 / 100 ))
-    local -r colorTimeName="$(tput setaf 225)"
+    local -r colorTimeName="$(tput setaf 181)"
     local -r colorTaskName="$(tput setaf 168)"
     local -r colorDescriptionName="$(tput setaf 255)"
     local -r defaultTextColor="$(tput sgr0)"
@@ -96,8 +96,55 @@ function addTaskToQueue()
 
 function help()
 {
-    echo "usage: $0 '<task name>' '<optional description>'"
-    echo "Note the usage of ''. Used to process collection of words as one word"
+echo 'ogtracker
+A command line time tracker/diary faciliator.
+
+
+NOTE, a folder must be set asside to put all the files. Folder defined with
+exported enviorment variable "TODO_TRACKER_DIR"
+
+
+USAGE:
+    ogtracker [OPTION] [TASK_TITLE/TASK_FINDER_STRING] [DESCRIPTION]
+
+    Only one option per ogtracker invocation!
+
+
+OPTIONS:
+    -s, --start, --push) TASK_TITLE [DESCRIPTION]
+            Often task involve starting said task and then finishing. In order to avoid
+            having to retype the bulk of the task name again when finished, push it
+            to the queue to signifiy the start and pop it when you are done.
+
+    -e, --end, --pop) [TASK_FINDER_STRING] [DESCRIPTION]
+            Mark the started task as finished. If no positional arguments provided will
+            pop off the longest 'waiting' queued task (FIFO). The task finder string is
+            useful if there are more than one queued up tasks and you want to finish a
+            specific task. Just type in a snippet and ogtracker will find the task. If
+            there are more than one task with the same snippet, ogtracker will present
+            the tasks and ask you to pick one.
+
+    -q, --queue)
+            Forgot what you queued up? Take a look with this option.
+
+    -l)
+            List out the tracked tasks for today. Equivalent to running ogtracker
+            with no arguments.
+
+    --help)
+            Lost and confused? Read the help page!
+
+EXAMPLES:
+    ogtracker "starting project chem" "isotopes n stuff"
+    ogtracker -s "going on a run" "24 miles, one day, light work."
+    ogtracker -e
+    ogtracker -e "cook" "finished cooking! Note to self: herbs and beef taste amazing!"
+    ogtracker -q
+    ogtracker -l
+    ogtracker
+    ogtracker --help
+'
+
 }
 
 function displayTodayTracker()
@@ -131,14 +178,16 @@ function main()
     fi
 
     # START: format all arguments
-    local unformattedArgs=()
-    for arg in "$@"
-    do
-        unformattedArgs+=("$(makeStandardFormatText "${arg}")")
-    done
+    {
+        local unformattedArgs=()
+        for arg in "$@"
+        do
+            unformattedArgs+=("$(makeStandardFormatText "${arg}")")
+        done
 
-    # https://stackoverflow.com/a/13762614
-    set -- "${unformattedArgs[@]}" # replace old with new args
+        # https://stackoverflow.com/a/13762614
+        set -- "${unformattedArgs[@]}" # replace old with new args
+    }
     # END: format all arguments
 
     local taskName
@@ -151,14 +200,14 @@ function main()
             exit 1
             fi
 
-            taskName="$2"
+            taskName="STARTED: $2"
             optionalDescription="$3"
             addTaskToQueue "${QUEUED_TASKS_FILENAME}" "${taskName}"
             noNewTaskToAdd=false
             ;;
         -e|--end|--pop)
             if [[ "$(wc -l < "${QUEUED_TASKS_FILENAME}")" -eq 0 ]]; then
-                echo $'Error! No task in queue. Please first start a task!'
+                echo $'Error! No task in queue. Please first start/push a task to the queue!'
                 command exit 2
             fi
 
@@ -168,7 +217,8 @@ function main()
                 taskName+="$(checkOutQueuedTask "${QUEUED_TASKS_FILENAME}" "${taskFinderString}")"
                 optionalDescription="$3"
             else
-                taskName+="$(checkOutQueuedTask "${QUEUED_TASKS_FILENAME}")" # get last task, FIFO
+                echo 'Retrieving oldest pushed task...'
+                taskName+="$(checkOutQueuedTask "${QUEUED_TASKS_FILENAME}")" # get longest 'waiting' task, FIFO
                 optionalDescription="$2"
             fi
             noNewTaskToAdd=false
@@ -178,6 +228,9 @@ function main()
             ;;
         -l)
             displayTodayTracker "${todayTrackerFname}"
+            ;;
+        --help)
+            help
             ;;
         --*|-*)
             echo "$1 not an accepted argument!"
