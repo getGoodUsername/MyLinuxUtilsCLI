@@ -20,7 +20,7 @@ argument determines the word seperator in the phrase.
 create a quick ssh key with all my prefered options. Give the keys a name with the first args,
 ex. 'schoolServer', 'github', 'work', etc. And dictate where the key goes to. Default is ~/.ssh
 
-## ogtimecard
+## ogtracker
 track my time by quickly "punching in and out" with a quick name of the current task
 and a small decscription. A git commit for my life! Remember to have "TODO\_TRACKER\_DIR"
 enviormenet variable that points to a directory

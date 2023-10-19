@@ -1,0 +1,205 @@
+#!/usr/bin/bash
+function makeStandardFormatText()
+{
+    local -r unformattedText="$1"
+
+    # [[:space:]]  - [ \t\v\f\n\r]   All whitespace chars
+    # the output of tr is every [[:space:]]+ (a string of 1 or more of them)
+    # is converted to a single ' ' (normal "spacebar")
+    # the sed commands subsitutes the beginning of the line with a single space
+    # with nothing, and a single space with the end of the line with nothing.
+    # since the whole string is single line, this has the effect of removing
+    # leading and trailing spaces from the string.
+     tr -s '[:space:]' ' ' <<< "${unformattedText}" | sed 's/^ //; s/ $//;'
+}
+
+function makeSeperator()
+{
+	local -r repeatChar="$1"
+	local -r count="$2"
+	yes "${repeatChar}" | head -n "${count}" | paste -s -d ''
+}
+
+function limitStringWidthBlockify()
+{
+    local -r str="$1"
+    local -r length="$2"
+    fold -s -w"${length}" <<< "${str}"
+}
+
+function generateTrackableEvent()
+{
+    local -r taskName="$1"
+    local -r optionalDescription="$2"
+    local -r sepLength="$3"
+    local -r maxTaskNameLength=$(( sepLength * 65 / 100 ))
+    local -r maxDescriptionLength=$(( sepLength * 80 / 100 ))
+    local -r colorTimeName="$(tput setaf 225)"
+    local -r colorTaskName="$(tput setaf 168)"
+    local -r colorDescriptionName="$(tput setaf 255)"
+    local -r defaultTextColor="$(tput sgr0)"
+
+    echo -n "${colorTimeName}$(date +'%T') - ${colorTaskName}"
+    limitStringWidthBlockify "${taskName}" "${maxTaskNameLength}"
+    if [[ -n "${optionalDescription}" ]]; then
+        echo -n "${colorDescriptionName}"
+        limitStringWidthBlockify "${optionalDescription}" "${maxDescriptionLength}" | sed 's/^/\t\t/'
+    fi
+    echo -n "${defaultTextColor}"
+    makeSeperator '-' "${sepLength}"
+}
+
+function getTodayTaskTrackerFilename()
+{
+	todoDir="${TODO_TRACKER_DIR}" # enviorment variable
+	todaysFileName="$(date +'%F-%a').txt"
+	echo "${todoDir}/${todaysFileName}"
+}
+
+function checkOutQueuedTask()
+{
+    # FIFO strucuture, when checking out a task will delelte the task
+    local -r queueFile="$1"
+    if [[ $# -eq 1 ]]; then
+        head -n 1 "${queueFile}"
+        sed -i '1d' "${queueFile}"
+        return 0
+    fi
+
+    local -r taskFinderString="$2"
+    # -n to number matches, even though -n shows line number of match, since each
+    # task name will be single line with `makeStandardFormatText` the line number
+    # of the task name will be the same as the number in the queue
+    local -r matchedQueuedTasks=$(grep -in "${taskFinderString}" "${queueFile}")
+
+    if [[ $(wc -l <<< "${matchedQueuedTasks}") -gt 1 ]]; then
+        # > $(tty) is for getting output to user! https://stackoverflow.com/a/27777403/15054688
+        echo "Multiple tasks containing: \"${taskFinderString}\"! Please choose a specific task." > "$(tty)"
+        echo 'Tasks:' > "$(tty)"
+        echo "${matchedQueuedTasks}" > "$(tty)"
+        read -rp 'Choose a task (number): ' taskNumber # by default output goes to user; don't have to redirect
+        sed -n "${taskNumber}p" "${queueFile}"
+        sed -i "${taskNumber}d" "${queueFile}"
+        return 0
+    fi
+
+
+}
+
+function addTaskToQueue()
+{
+    local -r queueFile="$1"
+    local -r taskName="$2"
+
+    echo "${taskName}" >> "${queueFile}"
+}
+
+function help()
+{
+    echo "usage: $0 '<task name>' '<optional description>'"
+    echo "Note the usage of ''. Used to process collection of words as one word"
+}
+
+function displayTodayTracker()
+{
+    local -r todayTrackerFname="$1"
+
+    if [[ -f "${todayTrackerFname}" ]]; then
+        bat "${todayTrackerFname}"
+        return 0;
+    fi
+
+    help
+    echo $'\nNo tracking has been done for today yet!'
+}
+
+function main()
+{
+    local -r SEPERATOR_LENGTH=65
+    local -r QUEUED_TASKS_FILENAME="${TODO_TRACKER_DIR}/.queuedTasks"
+    local -r todayTrackerFname="$(getTodayTaskTrackerFilename)"
+
+    # avoids error checking on displaying queue file
+    # don't do this with tracker file since checking if the file exists
+    # is the mechanisim being used to see if any new addiitions have been
+    # made this day
+    touch "${QUEUED_TASKS_FILENAME}"
+
+    if [[ $# -eq 0 ]]; then
+        displayTodayTracker "${todayTrackerFname}"
+        return 0
+    fi
+
+    # START: format all arguments
+    local unformattedArgs=()
+    for arg in "$@"
+    do
+        unformattedArgs+=("$(makeStandardFormatText "${arg}")")
+    done
+
+    # https://stackoverflow.com/a/13762614
+    set -- "${unformattedArgs[@]}" # replace old with new args
+    # END: format all arguments
+
+    local taskName
+    local optionalDescription
+    local noNewTaskToAdd=true
+    case "$1" in
+        -s|--start|--push)
+            if [[ $# -lt 2 ]]; then
+            echo 'Missing task name!'
+            exit 1
+            fi
+
+            taskName="$2"
+            optionalDescription="$3"
+            addTaskToQueue "${QUEUED_TASKS_FILENAME}" "${taskName}"
+            noNewTaskToAdd=false
+            ;;
+        -e|--end|--pop)
+            if [[ "$(wc -l < "${QUEUED_TASKS_FILENAME}")" -eq 0 ]]; then
+                echo $'Error! No task in queue. Please first start a task!'
+                command exit 2
+            fi
+
+            taskName="FINISHED: "
+            if [[ $# -ge 3 ]]; then
+                local -r taskFinderString="$2"
+                taskName+="$(checkOutQueuedTask "${QUEUED_TASKS_FILENAME}" "${taskFinderString}")"
+                optionalDescription="$3"
+            else
+                taskName+="$(checkOutQueuedTask "${QUEUED_TASKS_FILENAME}")" # get last task, FIFO
+                optionalDescription="$2"
+            fi
+            noNewTaskToAdd=false
+            ;;
+        -q|--queue)
+            bat "${QUEUED_TASKS_FILENAME}"
+            ;;
+        -l)
+            displayTodayTracker "${todayTrackerFname}"
+            ;;
+        --*|-*)
+            echo "$1 not an accepted argument!"
+            help
+            ;;
+        *)
+            taskName="$1"
+            optionalDescription="$2"
+            noNewTaskToAdd=false
+            ;;
+    esac
+
+    if "${noNewTaskToAdd}"; then
+        return 0
+    fi
+
+    echo "Task added!"
+    makeSeperator '-' "${SEPERATOR_LENGTH}"
+    generateTrackableEvent \
+        "${taskName}" \
+        "${optionalDescription}" \
+        "${SEPERATOR_LENGTH}" | tee -a "${todayTrackerFname}"
+}
+
+main "$@"
