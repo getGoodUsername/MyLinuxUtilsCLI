@@ -67,8 +67,9 @@ function getElapsedTime()
     # time between task start and end would be rare...
 
     # start and end are in seconds
+    # if end is blank, its assumed that get elapsed time from now. start -> now
     local -r start="$1"
-    local -r end="$2"
+    local -r end="${2:-"$(date +'%s')"}"
     local -r diff=$((end - start))
     local -r secInDay=$((60 * 60 * 24))
     local -r secInJanuary=$((secInDay * 31)) # start of unix epoch is on january 1st
@@ -103,7 +104,7 @@ function checkOutQueuedTask()
     # will return non zero exit code which I negate.
     if [[ -z "${taskFinderString}" ]] || ! grep -q "${taskFinderString}" "${queueFile}"; then
         echo "Checking out longest waiting task!" > "$(tty)"
-        echo "$(head -n 1 "${queueFile}") [Elapsed Time: $(getElapsedTime "$(head -n 1 "${startTimeFile}")" "$(date +'%s')")]"
+        echo "$(head -n 1 "${queueFile}") [Elapsed Time: $(getElapsedTime "$(head -n 1 "${startTimeFile}")")]"
         sed -i '1d' "${queueFile}" "${startTimeFile}"
         return 0
     fi
@@ -130,7 +131,7 @@ function checkOutQueuedTask()
         taskNumber="${allowedTaskNumbers}"
     fi
 
-    echo "$(sed -n "${taskNumber}p" "${queueFile}") [Elapsed Time: $(getElapsedTime "$(sed -n "${taskNumber}p" "${startTimeFile}")" "$(date +'%s')")]"
+    echo "$(sed -n "${taskNumber}p" "${queueFile}") [Elapsed Time: $(getElapsedTime "$(sed -n "${taskNumber}p" "${startTimeFile}")")]"
     sed -i "${taskNumber}d" "${queueFile}" "${startTimeFile}"
 
 
@@ -196,7 +197,6 @@ EXAMPLES:
     ogtracker
     ogtracker --help
 '
-
 }
 
 function displayTodayTracker()
@@ -253,25 +253,23 @@ function main()
 
     local taskName
     local optionalDescription
-    local noNewTaskToAdd=true
     case "$1" in
         -s|--start|--push)
             if [[ $# -lt 2 ]]; then
-            echo 'Missing task name!'
-            exit 1
+                echo 'Missing task name!' 1>&2
+                exit 1
             fi
 
             taskName="$2"
             optionalDescription="$3"
             addTaskToQueue "${QUEUED_TASKS_FILENAME}" "${START_TIME_QUEUED_TASKS}" "${taskName}"
             taskName="STARTED: ${taskName}"
-            noNewTaskToAdd=false
             # only add "STARTED: " to task name after it has been added to queue to avoid
             # having "STARTED: " be part of the name when stored for future
             ;;
         -e|--end|--pop)
             if [[ "$(wc -l < "${QUEUED_TASKS_FILENAME}")" -eq 0 ]]; then
-                echo $'Error! No task in queue. Please first start/push a task to the queue!'
+                echo $'Error! No task in queue. Please first start/push a task to the queue!' 1>&2
                 exit 2
             fi
 
@@ -279,38 +277,47 @@ function main()
             taskName="FINISHED: "
             taskName+="$(checkOutQueuedTask "${QUEUED_TASKS_FILENAME}" "${START_TIME_QUEUED_TASKS}" "${taskFinderString}")"
             optionalDescription="$3"
-            noNewTaskToAdd=false
             ;;
         -q|--queue)
-            (
-                while read -r unixSeconds
-                do
-                    date --date="@${unixSeconds}" +'%a %F %T'
-                done < "${START_TIME_QUEUED_TASKS}"
-            ) | paste -d $'\001' - "${QUEUED_TASKS_FILENAME}" | sed $'s/\001/    |    /' | bat
-            # hack for extended delimenter https://stackoverflow.com/a/25050586/15054688
+            if [[ "$(wc -l < "${QUEUED_TASKS_FILENAME}")" -eq 0 ]]; then
+                echo 'No tasks in queue!' 1>&2
+                exit 0
+            fi
+
+            local timeOutputQueue
+            local queuedTaskFormatted
+
+            while read -r unixSeconds queuedTask
+            do
+                timeOutputQueue="[Elapsed Time: $(getElapsedTime "${unixSeconds}")]      "
+                echo -n "${timeOutputQueue}"
+                queuedTaskFormatted="$(limitStringWidthBlockify "${queuedTask}" $(( SEPERATOR_LENGTH * 60 / 100 )) )"
+                head -n 1 <<< "${queuedTaskFormatted}"
+                tail -n +2 <<< "${queuedTaskFormatted}" | sed -E "s/^/$(makeSeperator ' ' "${#timeOutputQueue}")/"
+                makeSeperator '-' "$(( SEPERATOR_LENGTH * 110 / 100))"
+            done < <(paste -d ' ' "${START_TIME_QUEUED_TASKS}" "${QUEUED_TASKS_FILENAME}") | bat
+            exit 0
             ;;
         -l)
             displayTodayTracker "${todayTrackerFname}"
+            exit 0
             ;;
         --help)
             help
+            exit 0
             ;;
         --*|-*)
             echo "$1 not an accepted argument!"
             help
+            exit 0
             ;;
         *)
             taskName="$1"
             optionalDescription="$2"
-            noNewTaskToAdd=false
             ;;
     esac
 
-    if "${noNewTaskToAdd}"; then
-        return 0
-    fi
-
+    # every case option that does not exit will come here
     echo "Task added!"
     makeSeperator '_' "${SEPERATOR_LENGTH}"
     generateTrackableEvent \
