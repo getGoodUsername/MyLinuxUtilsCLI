@@ -1,5 +1,5 @@
 # MyLinuxUtilsCLI
-My command line utilities for a unix like system
+My command line utilities for a unix like system.
 "og" are my initials, everything past that is the "real" name of the command
 
 ## ogcopy
@@ -22,5 +22,4 @@ ex. 'schoolServer', 'github', 'work', etc. And dictate where the key goes to. De
 
 ## ogtracker
 track my time by quickly "punching in and out" with a quick name of the current task
-and a small decscription. A git commit for my life! Remember to have "TODO\_TRACKER\_DIR"
-enviormenet variable that points to a directory
+and a small decscription. A git commit for my life! Remember to have "OG\_TRACKER\_DIR" enviormenet variable that points to a directory

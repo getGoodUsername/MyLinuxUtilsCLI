@@ -95,7 +95,14 @@ function checkOutQueuedTask()
     local -r startTimeFile="$2"
     local -r taskFinderString="$3"
 
-    if [[ -z "${taskFinderString}" ]]; then
+    # was checking if there was NO matches with task finder string by checking number
+    # of matches var and if its 0. Though since I seperate computation of grep
+    # and store in matched queued tasks var and that then gets fed to wc -l with
+    # '<<<' I believe '<<<' will add a new line and that messes up the calculus
+    # instead now, just quickly quitely look for the match in the file and if it fails
+    # will return non zero exit code which I negate.
+    if [[ -z "${taskFinderString}" ]] || ! grep -q "${taskFinderString}" "${queueFile}"; then
+        echo "Checking out longest waiting task!" > "$(tty)"
         echo "$(head -n 1 "${queueFile}") [Elapsed Time: $(getElapsedTime "$(head -n 1 "${startTimeFile}")" "$(date +'%s')")]"
         sed -i '1d' "${queueFile}" "${startTimeFile}"
         return 0
@@ -104,18 +111,27 @@ function checkOutQueuedTask()
     # -n to number matches, even though -n shows line number of match, since each
     # task name will be single line with `makeStandardFormatText` the line number
     # of the task name will be the same as the number in the queue
-    local -r matchedQueuedTasks=$(grep -in "${taskFinderString}" "${queueFile}")
+    local -r matchedQueuedTasks="$(grep -in "${taskFinderString}" "${queueFile}")"
+    local -r numberOfMatches="$(wc -l <<< "${matchedQueuedTasks}")"
+    local -r allowedTaskNumbers="$(cut -d':' -f1 <<< "${matchedQueuedTasks}")"
+    local taskNumber=0
 
-    if [[ $(wc -l <<< "${matchedQueuedTasks}") -gt 1 ]]; then
+    if [[ "${numberOfMatches}" -gt 1 ]]; then
         # > $(tty) is for getting output to user! https://stackoverflow.com/a/27777403/15054688
         echo "Multiple tasks containing: \"${taskFinderString}\"! Please choose a specific task." > "$(tty)"
         echo 'Tasks:' > "$(tty)"
-        echo "${matchedQueuedTasks}" > "$(tty)"
-        read -rp 'Choose a task (number): ' taskNumber # by default output goes to user; don't have to redirect
-        echo "$(sed -n "${taskNumber}p" "${queueFile}") [Elapsed Time: $(getElapsedTime "$(sed -n "${taskNumber}p" "${startTimeFile}")" "$(date +'%s')")]"
-        sed -i "${taskNumber}d" "${queueFile}" "${startTimeFile}"
-        return 0
+        ( sed 's/:/)\t/' <<< "${matchedQueuedTasks}" ) > "$(tty)" # it looks nicer with \d)\t.* intead of \d:.*
+
+        while ! grep -q "^${taskNumber}\$" <<< "${allowedTaskNumbers}" #^$ necuessary to match whole line or else 1 would match any n digit number with at least one '1'
+        do
+            read -rp 'Choose a task (number): ' taskNumber # by default output goes to user; don't have to redirect
+        done
+    else # number of matches eq 1; allowedTaskNumbers is eq to taskNumber
+        taskNumber="${allowedTaskNumbers}"
     fi
+
+    echo "$(sed -n "${taskNumber}p" "${queueFile}") [Elapsed Time: $(getElapsedTime "$(sed -n "${taskNumber}p" "${startTimeFile}")" "$(date +'%s')")]"
+    sed -i "${taskNumber}d" "${queueFile}" "${startTimeFile}"
 
 
 }
