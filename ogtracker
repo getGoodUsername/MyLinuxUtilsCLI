@@ -200,10 +200,13 @@ function main()
             exit 1
             fi
 
-            taskName="STARTED: $2"
+            taskName="$2"
             optionalDescription="$3"
             addTaskToQueue "${QUEUED_TASKS_FILENAME}" "${taskName}"
+            taskName="STARTED: ${taskName}"
             noNewTaskToAdd=false
+            # only add "STARTED: " to task name after it has been added to queue to avoid
+            # having "STARTED: " be part of the name when stored for future reterival
             ;;
         -e|--end|--pop)
             if [[ "$(wc -l < "${QUEUED_TASKS_FILENAME}")" -eq 0 ]]; then
