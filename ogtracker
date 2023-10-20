@@ -32,7 +32,7 @@ function generateTrackableEvent()
     local -r taskName="$1"
     local -r optionalDescription="$2"
     local -r sepLength="$3"
-    local -r maxTaskNameLength=$(( sepLength * 85 / 100 ))
+    local -r maxTaskNameLength=$(( sepLength * 80 / 100 ))
     local -r maxDescriptionLength=$(( sepLength * 75 / 100 ))
     local -r colorTimeName="$(tput setaf 181)"
     local -r colorTaskName="$(tput setaf 168)"
@@ -54,22 +54,53 @@ function generateTrackableEvent()
 
 function getTodayTaskTrackerFilename()
 {
-	todoDir="${TODO_TRACKER_DIR}" # enviorment variable
+	todoDir="${OG_TRACKER_DIR}" # enviorment variable
 	todaysFileName="$(date +'%F-%a').txt"
 	echo "${todoDir}/${todaysFileName}"
+}
+
+function getElapsedTime()
+{
+    # NOTE: limit of 365 days - 1 second in elapsed time due to
+    # nature of how this solves the problem. Too lazy to roll out
+    # my own diff time, especially since more than a couple of days
+    # time between task start and end would be rare...
+
+    # start and end are in seconds
+    local -r start="$1"
+    local -r end="$2"
+    local -r diff=$((end - start))
+    local -r secInDay=$((60 * 60 * 24))
+    local -r secInJanuary=$((secInDay * 31)) # start of unix epoch is on january 1st
+    local formatString='%Hh %Mm %Ss'
+
+    if [[ "${diff}" -ge "${secInDay}" ]]; then
+        formatString="%d days ${formatString}"
+    fi
+
+    if [[ "${diff}" -ge "${secInJanuary}" ]]; then
+        formatString="%m months ${formatString}"
+    fi
+
+    date --utc --date="@${diff}" +"${formatString}"
+
+    # note about what '@' means (tldr, means seconds since unix epoch): https://unix.stackexchange.com/a/154400
+    # insparation for solution: https://stackoverflow.com/a/29269811
 }
 
 function checkOutQueuedTask()
 {
     # FIFO strucuture, when checking out a task will delelte the task
     local -r queueFile="$1"
-    if [[ $# -eq 1 ]]; then
-        head -n 1 "${queueFile}"
-        sed -i '1d' "${queueFile}"
+    local -r startTimeFile="$2"
+    local -r taskFinderString="$3"
+
+    if [[ -z "${taskFinderString}" ]]; then
+        echo "$(head -n 1 "${queueFile}") [Elapsed Time: $(getElapsedTime "$(head -n 1 "${startTimeFile}")" "$(date +'%s')")]"
+        sed -i '1d' "${queueFile}" "${startTimeFile}"
         return 0
     fi
 
-    local -r taskFinderString="$2"
     # -n to number matches, even though -n shows line number of match, since each
     # task name will be single line with `makeStandardFormatText` the line number
     # of the task name will be the same as the number in the queue
@@ -81,8 +112,8 @@ function checkOutQueuedTask()
         echo 'Tasks:' > "$(tty)"
         echo "${matchedQueuedTasks}" > "$(tty)"
         read -rp 'Choose a task (number): ' taskNumber # by default output goes to user; don't have to redirect
-        sed -n "${taskNumber}p" "${queueFile}"
-        sed -i "${taskNumber}d" "${queueFile}"
+        echo "$(sed -n "${taskNumber}p" "${queueFile}") [Elapsed Time: $(getElapsedTime "$(sed -n "${taskNumber}p" "${startTimeFile}")" "$(date +'%s')")]"
+        sed -i "${taskNumber}d" "${queueFile}" "${startTimeFile}"
         return 0
     fi
 
@@ -92,9 +123,11 @@ function checkOutQueuedTask()
 function addTaskToQueue()
 {
     local -r queueFile="$1"
-    local -r taskName="$2"
+    local -r startTimeFile="$2"
+    local -r taskName="$3"
 
     echo "${taskName}" >> "${queueFile}"
+    date +'%s' >> "${startTimeFile}" # unix time in seconds makes easier arithmatic later to figure out elapsed time
 }
 
 function help()
@@ -104,7 +137,7 @@ A command line time tracker/diary faciliator.
 
 
 NOTE, a folder must be set asside to put all the files. Folder defined with
-exported enviorment variable "TODO_TRACKER_DIR"
+exported enviorment variable "OG_TRACKER_DIR"
 
 
 USAGE:
@@ -121,7 +154,7 @@ OPTIONS:
 
     -e, --end, --pop) [TASK_FINDER_STRING] [DESCRIPTION]
             Mark the started task as finished. If no positional arguments provided will
-            pop off the longest 'waiting' queued task (FIFO). The task finder string is
+            pop off the longest "waiting" queued task (FIFO). The task finder string is
             useful if there are more than one queued up tasks and you want to finish a
             specific task. Just type in a snippet and ogtracker will find the task. If
             there are more than one task with the same snippet, ogtracker will present
@@ -173,7 +206,8 @@ function displayTodayTracker()
 function main()
 {
     local -r SEPERATOR_LENGTH=65
-    local -r QUEUED_TASKS_FILENAME="${TODO_TRACKER_DIR}/.queuedTasks"
+    local -r QUEUED_TASKS_FILENAME="${OG_TRACKER_DIR}/.queuedTasks"
+    local -r START_TIME_QUEUED_TASKS="${OG_TRACKER_DIR}/.startTimeQueuedTask"
     local -r todayTrackerFname="$(getTodayTaskTrackerFilename)"
 
     # avoids error checking on displaying queue file
@@ -181,6 +215,7 @@ function main()
     # is the mechanisim being used to see if any new addiitions have been
     # made this day
     touch "${QUEUED_TASKS_FILENAME}"
+    touch "${START_TIME_QUEUED_TASKS}"
 
     if [[ $# -eq 0 ]]; then
         displayTodayTracker "${todayTrackerFname}"
@@ -212,7 +247,7 @@ function main()
 
             taskName="$2"
             optionalDescription="$3"
-            addTaskToQueue "${QUEUED_TASKS_FILENAME}" "${taskName}"
+            addTaskToQueue "${QUEUED_TASKS_FILENAME}" "${START_TIME_QUEUED_TASKS}" "${taskName}"
             taskName="STARTED: ${taskName}"
             noNewTaskToAdd=false
             # only add "STARTED: " to task name after it has been added to queue to avoid
@@ -221,23 +256,23 @@ function main()
         -e|--end|--pop)
             if [[ "$(wc -l < "${QUEUED_TASKS_FILENAME}")" -eq 0 ]]; then
                 echo $'Error! No task in queue. Please first start/push a task to the queue!'
-                command exit 2
+                exit 2
             fi
 
+            local -r taskFinderString="$2"
             taskName="FINISHED: "
-            if [[ $# -ge 3 ]]; then
-                local -r taskFinderString="$2"
-                taskName+="$(checkOutQueuedTask "${QUEUED_TASKS_FILENAME}" "${taskFinderString}")"
-                optionalDescription="$3"
-            else
-                echo 'Retrieving oldest pushed task...'
-                taskName+="$(checkOutQueuedTask "${QUEUED_TASKS_FILENAME}")" # get longest 'waiting' task, FIFO
-                optionalDescription="$2"
-            fi
+            taskName+="$(checkOutQueuedTask "${QUEUED_TASKS_FILENAME}" "${START_TIME_QUEUED_TASKS}" "${taskFinderString}")"
+            optionalDescription="$3"
             noNewTaskToAdd=false
             ;;
         -q|--queue)
-            bat "${QUEUED_TASKS_FILENAME}"
+            (
+                while read -r unixSeconds
+                do
+                    date --date="@${unixSeconds}" +'%a %F %T'
+                done < "${START_TIME_QUEUED_TASKS}"
+            ) | paste -d $'\001' - "${QUEUED_TASKS_FILENAME}" | sed $'s/\001/    |    /' | bat
+            # hack for extended delimenter https://stackoverflow.com/a/25050586/15054688
             ;;
         -l)
             displayTodayTracker "${todayTrackerFname}"
@@ -266,6 +301,7 @@ function main()
         "${taskName}" \
         "${optionalDescription}" \
         "${SEPERATOR_LENGTH}" | tee -a "${todayTrackerFname}"
+    echo '' >> "${todayTrackerFname}" # I prefer how the speration looks between tasks
 }
 
 main "$@"
