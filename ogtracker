@@ -32,7 +32,7 @@ function generateTrackableEvent()
     local -r taskName="$1"
     local -r optionalDescription="$2"
     local -r sepLength="$3"
-    local -r maxTaskNameLength=$(( sepLength * 65 / 100 ))
+    local -r maxTaskNameLength=$(( sepLength * 85 / 100 ))
     local -r maxDescriptionLength=$(( sepLength * 75 / 100 ))
     local -r colorTimeName="$(tput setaf 181)"
     local -r colorTaskName="$(tput setaf 168)"
@@ -42,11 +42,14 @@ function generateTrackableEvent()
     echo -n "${colorTimeName}$(date +'%T') - ${colorTaskName}"
     limitStringWidthBlockify "${taskName}" "${maxTaskNameLength}"
     if [[ -n "${optionalDescription}" ]]; then
+        echo -n "${defaultTextColor}"
+        makeSeperator '-' "${sepLength}"
         echo -n "${colorDescriptionName}"
+        echo -n "Notes:"
         limitStringWidthBlockify "${optionalDescription}" "${maxDescriptionLength}" | sed 's/^/\t\t/'
     fi
     echo -n "${defaultTextColor}"
-    makeSeperator '-' "${sepLength}"
+    makeSeperator '_' "${sepLength}"
 }
 
 function getTodayTaskTrackerFilename()
@@ -156,8 +159,15 @@ function displayTodayTracker()
         return 0;
     fi
 
-    help
-    echo $'\nNo tracking has been done for today yet!'
+    local -r errorRed="$(tput setaf 1)"
+    local -r defaultTextColor="$(tput sgr0)"
+
+    echo -n "${errorRed}"
+    echo 'No tracking has been done for today yet!'
+    echo $'Can\'t list out todays tasks if you there aren\'t none!'
+    echo 'Look at: ogtracker --help'
+    echo 'Try: ogtracker <task name> <descirpiton>'
+    echo -n "${defaultTextColor}"
 }
 
 function main()
@@ -206,7 +216,7 @@ function main()
             taskName="STARTED: ${taskName}"
             noNewTaskToAdd=false
             # only add "STARTED: " to task name after it has been added to queue to avoid
-            # having "STARTED: " be part of the name when stored for future reterival
+            # having "STARTED: " be part of the name when stored for future
             ;;
         -e|--end|--pop)
             if [[ "$(wc -l < "${QUEUED_TASKS_FILENAME}")" -eq 0 ]]; then
@@ -251,7 +261,7 @@ function main()
     fi
 
     echo "Task added!"
-    makeSeperator '-' "${SEPERATOR_LENGTH}"
+    makeSeperator '_' "${SEPERATOR_LENGTH}"
     generateTrackableEvent \
         "${taskName}" \
         "${optionalDescription}" \
