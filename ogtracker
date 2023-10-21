@@ -100,9 +100,9 @@ function checkOutQueuedTask()
     # of matches var and if its 0. Though since I seperate computation of grep
     # and store in matched queued tasks var and that then gets fed to wc -l with
     # '<<<' I believe '<<<' will add a new line and that messes up the calculus
-    # instead now, just quickly quitely look for the match in the file and if it fails
+    # instead now, just quickly qMindy made mung bean soup! EAT TIME!!!uitely look for the match in the file and if it fails
     # will return non zero exit code which I negate.
-    if [[ -z "${taskFinderString}" ]] || ! grep -q "${taskFinderString}" "${queueFile}"; then
+    if [[ -z "${taskFinderString}" ]] || ! grep -qi "${taskFinderString}" "${queueFile}"; then
         echo "Checking out longest waiting task!" > "$(tty)"
         echo "$(head -n 1 "${queueFile}") [Elapsed Time: $(getElapsedTime "$(head -n 1 "${startTimeFile}")")]"
         sed -i '1d' "${queueFile}" "${startTimeFile}"
