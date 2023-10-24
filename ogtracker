@@ -132,9 +132,7 @@ function checkOutQueuedTask()
     fi
 
     echo "$(sed -n "${taskNumber}p" "${queueFile}") [Elapsed Time: $(getElapsedTime "$(sed -n "${taskNumber}p" "${startTimeFile}")")]"
-    sed -i "${taskNumber}d" "${queueFile}" "${startTimeFile}"
-
-
+    sed -i "${taskNumber}d" "${queueFile}" "${startTimeFile}"   
 }
 
 function addTaskToQueue()
@@ -221,6 +219,8 @@ function displayTodayTracker()
 
 function main()
 {
+    mkdir -p "${OG_TRACKER_DIR}" # just make sure dir exits
+
     local -r SEPERATOR_LENGTH=65
     local -r QUEUED_TASKS_FILENAME="${OG_TRACKER_DIR}/.queuedTasks"
     local -r START_TIME_QUEUED_TASKS="${OG_TRACKER_DIR}/.startTimeQueuedTask"
@@ -230,6 +230,15 @@ function main()
     # don't do this with tracker file since checking if the file exists
     # is the mechanisim being used to see if any new addiitions have been
     # made this day
+    # In addition, avoid ensuring that today tracker file is made
+    # since I don't want to have accidently empty tracker files clogging
+    # up the folder if I don't need to. Having it like this allows
+    # for easier future analysis of the days I tracked and it wont
+    # get mucked up by an empty file automatically being made because
+    # I did ogtracker --help or ogtracker --queue
+    # And that also justifies the reason to always make sure that the queue
+    # files being present; there will always be a predefined max number of
+    # them, bounded, while the task tracker files are unbounded in size/count
     touch "${QUEUED_TASKS_FILENAME}"
     touch "${START_TIME_QUEUED_TASKS}"
 
