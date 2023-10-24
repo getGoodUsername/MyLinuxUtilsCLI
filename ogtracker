@@ -300,13 +300,13 @@ function main()
             do
                 timeOutputQueue="[Elapsed Time: $(getElapsedTime "${unixSeconds}")]      "
                 echo -n "${timeOutputQueue}"
-                queuedTaskFormatted="$(limitStringWidthBlockify "${queuedTask}" $(( SEPERATOR_LENGTH * 60 / 100 )) )"
+                queuedTaskFormatted="$(limitStringWidthBlockify "${queuedTask}" $(( SEPERATOR_LENGTH - ${#timeOutputQueue}  )) )"
                 head -n 1 <<< "${queuedTaskFormatted}"
                 tail -n +2 <<< "${queuedTaskFormatted}" | sed -E "s/^/$(makeSeperator ' ' "${#timeOutputQueue}")/"
                 makeSeperator '-' "$(( SEPERATOR_LENGTH * 110 / 100))"
             done < <(paste -d ' ' "${START_TIME_QUEUED_TASKS}" "${QUEUED_TASKS_FILENAME}") | bat
             exit 0
-            ;;
+           ;;
         -l)
             displayTodayTracker "${todayTrackerFname}"
             exit 0
