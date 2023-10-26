@@ -1,4 +1,6 @@
 #!/usr/bin/bash
+shopt -s nullglob
+
 function makeStandardFormatText()
 {
     local -r unformattedText="$1"
@@ -178,9 +180,16 @@ OPTIONS:
     -q, --queue)
             Forgot what you queued up? Take a look with this option.
 
-    -l)
-            List out the tracked tasks for today. Equivalent to running ogtracker
-            with no arguments.
+    -l) [TRACKER_NUMBER]
+            ogtracker -l -1 displays the latest tracker file. ogtracker -l 0
+            displays the oldest, and first, tracker file. Think about the tracker
+            files being in a zero indexed array from oldest to newest. ogtracker -l
+            is equivalent to ogtracker -l -1. NOTE, ogtracker -l is not necessarily
+            equivalent to "ogtracker" with no arguments. ogtracker will always display
+            todays tracker file. On days where no tracking has been done, ogtracker will
+            print to stderr. ogtracker -l will always print the latest tracker file, unless
+            of course there are no tracker files at all. In which case it will also print
+            to stderr.
 
     --help)
             Lost and confused? Read the help page!
@@ -308,7 +317,19 @@ function main()
             exit 0
            ;;
         -l)
-            displayTodayTracker "${todayTrackerFname}"
+            local -r trackerNumber="${2:--1}" # by default show the last tracker file
+            local -r trackerFiles=("${OG_TRACKER_DIR}"/[^.]*) # expaned glob pattern in array
+
+            if [[ "${trackerNumber}" -ge "${#trackerFiles[@]}" || "${trackerNumber}" -lt -"${#trackerFiles[@]}" ]]; then
+            {
+                echo 'Out of bounds! Please choose a valid index!'
+                echo "Index range: -${#trackerFiles[@]} to $(("${#trackerFiles[@]}" - 1))"
+                echo 'Note: zero indexed.'
+                exit 3
+            } 1>&2
+            fi
+
+            bat "${trackerFiles["${trackerNumber}"]}"
             exit 0
             ;;
         --help)
