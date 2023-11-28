@@ -63,32 +63,18 @@ function getTodayTaskTrackerFilename()
 
 function getElapsedTime()
 {
-    # NOTE: limit of 365 days - 1 second in elapsed time due to
-    # nature of how this solves the problem. Too lazy to roll out
-    # my own diff time, especially since more than a couple of days
-    # time between task start and end would be rare...
-
+    # TODO, change to show only days, hours, minutes, and seconds . Everything else is trash...
     # start and end are in seconds
     # if end is blank, its assumed that get elapsed time from now. start -> now
     local -r start="$1"
     local -r end="${2:-"$(date +'%s')"}"
-    local -r diff=$((end - start))
-    local -r secInDay=$((60 * 60 * 24))
-    local -r secInJanuary=$((secInDay * 31)) # start of unix epoch is on january 1st
-    local formatString='%Hh %Mm %Ss'
+    local -r elapsedTimeSec=$((end - start))
+    local -r seconds=$((elapsedTimeSec % 60))
+    local -r minutes=$(( ((elapsedTimeSec - seconds) % (60 * 60)) / 60 ))
+    local -r hours=$(( ((elapsedTimeSec - (minutes * 60) - seconds) % (60 * 60 * 24)) / (60 * 60) ))
+    local -r days=$(( (elapsedTimeSec - (hours * 60 * 60) - (minutes * 60) - seconds) / (60 * 60 * 24) ))
 
-    if [[ "${diff}" -ge "${secInDay}" ]]; then
-        formatString="%d days ${formatString}"
-    fi
-
-    if [[ "${diff}" -ge "${secInJanuary}" ]]; then
-        formatString="%m months ${formatString}"
-    fi
-
-    date --utc --date="@${diff}" +"${formatString}"
-
-    # note about what '@' means (tldr, means seconds since unix epoch): https://unix.stackexchange.com/a/154400
-    # insparation for solution: https://stackoverflow.com/a/29269811
+    printf "%dd %02dh %02dm %02ds" ${days} ${hours} ${minutes} ${seconds}
 }
 
 function checkOutQueuedTask()
@@ -165,12 +151,13 @@ USAGE:
 
 OPTIONS:
     -s, --start, --push) TASK_TITLE [DESCRIPTION]
-            Often task involve starting said task and then finishing. In order to avoid
-            having to retype the bulk of the task name again when finished, push it
-            to the queue to signifiy the start and pop it when you are done.
+            Often tasks involve starting said task and then finishing at a later
+            time. In order to avoid having to needlessly retype a task when reporting
+            completion, push the task queue first and simply pop it when you are done.
+            These commands push tasks to the queue.
 
     -e, --end, --pop) [TASK_FINDER_STRING] [DESCRIPTION]
-            Mark the started task as finished. If no positional arguments provided will
+            Pop a task off queue and mark done. If no positional arguments provided will
             pop off the longest "waiting" queued task (FIFO). The task finder string is
             useful if there are more than one queued up tasks and you want to finish a
             specific task. Just type in a snippet and ogtracker will find the task. If
@@ -195,7 +182,7 @@ OPTIONS:
             Lost and confused? Read the help page!
 
 EXAMPLES:
-    ogtracker "starting project chem" "isotopes n stuff"
+    ogtracker "crush update" "they are sooo dreamy!"
     ogtracker -s "going on a run" "24 miles, one day, light work."
     ogtracker -e
     ogtracker -e "cook" "finished cooking! Note to self: herbs and beef taste amazing!"
@@ -318,7 +305,7 @@ function main()
            ;;
         -l)
             local -r trackerNumber="${2:--1}" # by default show the last tracker file
-            local -r trackerFiles=("${OG_TRACKER_DIR}"/[^.]*) # expaned glob pattern in array
+            local -r trackerFiles=("${OG_TRACKER_DIR}"/[^.]*) # expaned glob pattern in array, globs are sorted! https://unix.stackexchange.com/a/368507/579677
 
             if [[ "${trackerNumber}" -ge "${#trackerFiles[@]}" || "${trackerNumber}" -lt -"${#trackerFiles[@]}" ]]; then
             {
