@@ -1,3 +1,25 @@
 #!/usr/bin/bash
 
-cat | xclip -selection clipboard
+xclip_options='-in -rmlastnl -selection clipboard'
+showNewLineCompensation=false
+case "$1" in
+	-s|--show)
+		xclip_options+=' -filter'
+		showNewLineCompensation=true
+		# rmlastnl will remove new line at end of input
+		# and also display again to stdout as such. showNewLineComp...
+		# makes it so PS1 is on a different line even though
+		# technically clipboard copy does not end with new line
+		# and would have output be right next to PS1 otherwise.
+		# Done to just make output prettier and in line with
+		# usual expecations
+		;;
+	*)
+		echo 'Note:
+Use -s or --show to still copy to clipboard
+but in addition also show input to stdout' 1>&2
+		;;
+esac
+
+cat | xclip ${xclip_options}
+${showNewLineCompensation} && echo ''
