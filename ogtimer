@@ -3,19 +3,17 @@
 function main()
 {
     local -r defaultFont='mono12'
-    local startMinutes
     local playBeeBool=true
     case "$1" in
         -q|--quite)
             playBeepBool=false
-            startMinutes="$2"
-            ;;
-        *)
-            startMinutes="$1"
+            shift 1 # next param shall be minutes timer shall go for
             ;;
     esac
 
+    local -r startMinutes=${1:-5}; # default is 5 min
 
+    clear
     toilet --font="${defaultFont}" "${startMinutes}:00"
     for ((min=$((startMinutes - 1)); min>=0; min--))
     do
