@@ -1,0 +1,44 @@
+#!/usr/bin/bash
+
+function main()
+{
+    local -r defaultFont='mono12'
+    local startMinutes
+    local playBeeBool=true
+    case "$1" in
+        -q|--quite)
+            playBeepBool=false
+            startMinutes="$2"
+            ;;
+        *)
+            startMinutes="$1"
+            ;;
+    esac
+
+
+    toilet --font="${defaultFont}" "${startMinutes}:00"
+    for ((min=$((startMinutes - 1)); min>=0; min--))
+    do
+        for ((sec=59; sec>9; sec--))
+        do
+            sleep 1
+            clear
+            toilet --font="${defaultFont}" "${min}:${sec}"
+        done
+        for ((sec=9; sec>=0; sec--))
+        do
+            sleep 1
+            clear
+            toilet --font="${defaultFont}" "${min}:0${sec}"
+        done
+    done
+
+    sleep 1
+    clear
+    toilet --font="${defaultFont}" "DONE!"
+
+    echo "${startMinutes} elapsed!"
+    ${playBeepBool} && aplay -q /usr/share/sounds/GNUstep/Tink.wav
+}
+
+main "$@"
