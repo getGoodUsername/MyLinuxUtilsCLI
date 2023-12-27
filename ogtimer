@@ -35,7 +35,7 @@ function main()
     clear
     toilet --font="${defaultFont}" "DONE!"
 
-    echo "${startMinutes} elapsed!"
+    echo "${startMinutes} mins elapsed!"
     ${playBeepBool} && aplay -q /usr/share/sounds/GNUstep/Tink.wav
 }
 
