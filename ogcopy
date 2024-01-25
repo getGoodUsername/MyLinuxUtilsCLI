@@ -14,7 +14,7 @@ case "$1" in
 		# Done to just make output prettier and in line with
 		# usual expecations
 		;;
-	*)
+	?*) # ?* is used to force this warning to appear when there is only atleast one char
 		echo 'Note:
 Use -s or --show to still copy to clipboard
 but in addition also show input to stdout' 1>&2
