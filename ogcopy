@@ -22,4 +22,7 @@ but in addition also show input to stdout' 1>&2
 esac
 
 cat | xclip ${xclip_options}
-${showNewLineCompensation} && echo ''
+
+if ${showNewLineCompensation};  then
+	echo ''
+fi

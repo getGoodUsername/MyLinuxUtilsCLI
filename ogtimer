@@ -1,9 +1,17 @@
 #!/usr/bin/bash
 
+function prettyPrint()
+{
+    local -r defaultFont='mono12'
+    untrimmedText="$(toilet --font="${defaultFont}" "${1}")"
+    tail -n +2 <<< "${untrimmedText}" | head -n -3 # remove the last line with non blank now to replace with one without ending \n
+    tail -n 3 <<< "${untrimmedText}" | head -n 1 | tr -d '\n' # do this to make terminal window that program is running in as compact as possible
+}
+
 function main()
 {
     local -r defaultFont='mono12'
-    local playBeeBool=true
+    local playBeepBool=true
     case "$1" in
         -q|--quite)
             playBeepBool=false
@@ -14,26 +22,27 @@ function main()
     local -r startMinutes=${1:-5}; # default is 5 min
 
     clear
-    toilet --font="${defaultFont}" "${startMinutes}:00"
+    prettyPrint "${startMinutes}:00"
     for ((min=$((startMinutes - 1)); min>=0; min--))
     do
         for ((sec=59; sec>9; sec--))
         do
             sleep 1
             clear
-            toilet --font="${defaultFont}" "${min}:${sec}"
+            prettyPrint "${min}:${sec}"
         done
         for ((sec=9; sec>=0; sec--))
         do
             sleep 1
             clear
-            toilet --font="${defaultFont}" "${min}:0${sec}"
+            prettyPrint "${min}:0${sec}"
         done
     done
 
     sleep 1
     clear
-    toilet --font="${defaultFont}" "DONE!"
+    prettyPrint "DONE!"
+    echo '' # prettyPrint doesn't do new lines
 
     echo "${startMinutes} mins elapsed!"
     ${playBeepBool} && aplay -q /usr/share/sounds/GNUstep/Tink.wav
