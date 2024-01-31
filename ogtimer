@@ -23,19 +23,13 @@ function main()
 
     clear
     prettyPrint "${startMinutes}:00"
-    for ((min=$((startMinutes - 1)); min>=0; min--))
+    for min in $(seq $((startMinutes - 1)) -1 0)
     do
-        for ((sec=59; sec>9; sec--))
+        for sec in {59..00}
         do
             sleep 1
             clear
             prettyPrint "${min}:${sec}"
-        done
-        for ((sec=9; sec>=0; sec--))
-        do
-            sleep 1
-            clear
-            prettyPrint "${min}:0${sec}"
         done
     done
 
