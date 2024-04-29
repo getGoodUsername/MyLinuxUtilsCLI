@@ -205,12 +205,19 @@ function displayTodayTracker()
     local -r errorRed="$(tput setaf 1)"
     local -r defaultTextColor="$(tput sgr0)"
 
-    echo -n "${errorRed}"
-    echo 'No tracking has been done for today yet!'
-    echo $'Can\'t list out todays tasks if you there aren\'t none!'
-    echo 'Look at: ogtracker --help'
-    echo 'Try: ogtracker <task name> <descirpiton>'
-    echo -n "${defaultTextColor}"
+    {
+        echo -n "${errorRed}"
+        echo 'No tracking has been done for today yet!'
+        echo $'Can\'t list out todays tasks if you there aren\'t none!'
+        echo 'Look at: ogtracker --help'
+        echo 'Try: ogtracker <task name> <descirpiton>'
+        # keep default text color contorol within stderr output block
+        # to avoid outputing anything to stdout. This will help keep
+        # programatic error checking straight forward and still has
+        # the desired effect of going back to default coloring for stdout also.
+        echo -n "${defaultTextColor}"
+    } >&2
+
 }
 
 function main()
