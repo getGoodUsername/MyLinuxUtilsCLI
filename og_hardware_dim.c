@@ -11,7 +11,7 @@
  */
 
 int main(const int argc, const char *const *argv);
-bool isPathOwnedByRoot(const char* pathname);
+bool isFileOwnedByRoot(const char* fname);
 FILE* fileOpener(const char* const fname, const char* const mode, int error_code);
 void changeFileMode(FILE* fhandle, const char* fpath, const char* mode, int error_code);
 int clamp(int value, int min_inclusive, int max_inclusive);
@@ -81,17 +81,28 @@ int main(const int argc, const char *const *argv)
     return 0;
 }
 
-bool isPathOwnedByRoot(const char* pathname)
+bool isFileOwnedByRoot(const char* fname)
 {
     struct stat statbuf;
 
-    return false;
+    if (stat(fname, &statbuf) == -1) {
+        fprintf(stderr, "ERROR: %s\tstat wasn't able to get info about %s\n", strerror(errno), fname);
+        exit(127);
+    }
+
+    return statbuf.st_uid == 0 && statbuf.st_gid == 0;
 }
 
 FILE* fileOpener(const char* const fname, const char* const mode, int error_code)
 {
-    // force files to be fully owned by root (group must be root too) in order
-    // to keep non privileged users from changing values willy-nilly.
+    // force files to be fully owned by root (group must be root too)
+    // in order to keep non privileged users from changing values
+    // willy-nilly and reduce attack vectors
+    if (!isFileOwnedByRoot(fname)) {
+        fprintf(stderr, "ERROR: File's owner and group must be root! FAILED: %s\n", fname);
+        exit(127);
+    }
+
     FILE* fp = fopen(fname, mode);
 
     if (fp == NULL) {
