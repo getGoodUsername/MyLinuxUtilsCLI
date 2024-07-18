@@ -3,11 +3,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/stat.h>
+
+/**
+ * og_hardware_dim meant to be used with displays whose backlight can be
+ * adjusted through software, usually laptops
+ */
 
 int main(const int argc, const char *const *argv);
+bool isPathOwnedByRoot(const char* pathname);
 FILE* fileOpener(const char* const fname, const char* const mode, int error_code);
 void changeFileMode(FILE* fhandle, const char* fpath, const char* mode, int error_code);
-int bindInt(int value, int max_inclusive, int min);
+int clamp(int value, int min_inclusive, int max_inclusive);
 
 // such a short lil script, will let OS cleanup by itself (files and memory).
 // executable is expected to owned by root and have setuid active in file permissions, else can't edit brightness file
@@ -21,7 +28,7 @@ int main(const int argc, const char *const *argv)
 
     int error_code_num = 1;
     const int user_input_dim_brightness_value = (argc > 1) ? atoi(argv[1]) : 1;
-    const char* const pre_dimstate_brightness_fname = (argc > 2) ? argv[2] : "/home/spaceface102/.og.d/Dim/brightness_tracker";
+    const char* const pre_dimstate_brightness_fname = (argc > 2) ? argv[2] : "/home/spaceface102/.og.d/Dim/hardware_brightness_tracker";
     const char* const curr_brightness_ctl_fname = (argc > 3) ? argv[3] : "/sys/class/backlight/intel_backlight/brightness";
     const char* const max_brightness_fname = (argc > 4) ? argv[4] : "/sys/class/backlight/intel_backlight/max_brightness";
     FILE* const pre_dimstate_brightness_fhandle = fileOpener(pre_dimstate_brightness_fname, "r", error_code_num++);
@@ -44,12 +51,17 @@ int main(const int argc, const char *const *argv)
     }
     {
         const int old_curr_brightness = curr_brightness;
-        curr_brightness = bindInt(curr_brightness, MAX_BRIGHTNESS, MIN_BRIGHTNESS);
+        curr_brightness = clamp(curr_brightness, MIN_BRIGHTNESS, MAX_BRIGHTNESS);
         if (curr_brightness != old_curr_brightness) fprintf(stderr, "WARNING: Current brightness value was invalid! Changed to %d. Value was: %d\n", curr_brightness, old_curr_brightness);
     }
 
     bool is_already_dim = (fscanf(pre_dimstate_brightness_fhandle, "%d", &pre_dimstate_brightness) == 1);
-
+    {
+        // just incase user accidentally/maliciously changed value in pre_dimstate_brightness file
+        const int old_pre_dimstate_brightness = pre_dimstate_brightness;
+        pre_dimstate_brightness = clamp(pre_dimstate_brightness, MIN_BRIGHTNESS, MAX_BRIGHTNESS);
+        if (pre_dimstate_brightness != old_pre_dimstate_brightness) fprintf(stderr, "WARNING: Pre dimstate brightness value was invalid! Changed to %d. Value was: %d\n", pre_dimstate_brightness, old_pre_dimstate_brightness);
+    }
     // clear files contents to get ready for replacement values
     changeFileMode(curr_brightness_ctl_fhandle, curr_brightness_ctl_fname, "w", error_code_num++);
     changeFileMode(pre_dimstate_brightness_fhandle, pre_dimstate_brightness_fname, "w", error_code_num++); // pre dimstate file is to be empty when not in dimstate
@@ -60,7 +72,7 @@ int main(const int argc, const char *const *argv)
         return 0;
     }
 
-    const int DIM_BRIGHTNESS_VALUE = bindInt(user_input_dim_brightness_value, MAX_BRIGHTNESS, MIN_BRIGHTNESS);
+    const int DIM_BRIGHTNESS_VALUE = clamp(user_input_dim_brightness_value, MIN_BRIGHTNESS, MAX_BRIGHTNESS);
     if (user_input_dim_brightness_value != DIM_BRIGHTNESS_VALUE) fprintf(stderr, "WARNING: Input dim brightness value was invalid! Changed to %d. Value was: %d\n", DIM_BRIGHTNESS_VALUE, user_input_dim_brightness_value);
 
     fprintf(pre_dimstate_brightness_fhandle, "%d", curr_brightness);
@@ -69,8 +81,17 @@ int main(const int argc, const char *const *argv)
     return 0;
 }
 
+bool isPathOwnedByRoot(const char* pathname)
+{
+    struct stat statbuf;
+
+    return false;
+}
+
 FILE* fileOpener(const char* const fname, const char* const mode, int error_code)
 {
+    // force files to be fully owned by root (group must be root too) in order
+    // to keep non privileged users from changing values willy-nilly.
     FILE* fp = fopen(fname, mode);
 
     if (fp == NULL) {
@@ -99,7 +120,7 @@ void changeFileMode(FILE* fhandle, const char* fpath, const char* mode, int erro
  * @param min_inclusive expected to be less than or eq to max_inclusive
  * @return int
  */
-int bindInt(int value, int max_inclusive, int min_inclusive)
+int clamp(int value, int min_inclusive, int max_inclusive)
 {
     value = (value > max_inclusive) ? max_inclusive : value;
     return (value < min_inclusive) ? min_inclusive : value;
