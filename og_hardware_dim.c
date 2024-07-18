@@ -11,7 +11,7 @@
  */
 
 int main(const int argc, const char *const *argv);
-bool isFileOwnedByRoot(const char* fname);
+bool isFileOnlyControlledByRoot(const char* fname);
 FILE* fileOpener(const char* const fname, const char* const mode, int error_code);
 void changeFileMode(FILE* fhandle, const char* fpath, const char* mode, int error_code);
 int clamp(int value, int min_inclusive, int max_inclusive);
@@ -81,7 +81,7 @@ int main(const int argc, const char *const *argv)
     return 0;
 }
 
-bool isFileOwnedByRoot(const char* fname)
+bool isFileOnlyControlledByRoot(const char* fname)
 {
     struct stat statbuf;
 
@@ -90,16 +90,29 @@ bool isFileOwnedByRoot(const char* fname)
         exit(127);
     }
 
-    return statbuf.st_uid == 0 && statbuf.st_gid == 0;
+    const bool is_owned_by_root = statbuf.st_uid == 0 && statbuf.st_gid == 0;
+    const bool is_r_owner = statbuf.st_mode & S_IRUSR;
+    const bool is_r_group = statbuf.st_mode & S_IRGRP;
+    const bool is_at_most_r_other = !(statbuf.st_mode & S_IWOTH) && !(statbuf.st_mode & S_IXOTH);
+
+    return is_owned_by_root && is_r_owner && is_r_group && is_at_most_r_other;
 }
 
 FILE* fileOpener(const char* const fname, const char* const mode, int error_code)
 {
-    // force files to be fully owned by root (group must be root too)
-    // in order to keep non privileged users from changing values
-    // willy-nilly and reduce attack vectors
-    if (!isFileOwnedByRoot(fname)) {
-        fprintf(stderr, "ERROR: File's owner and group must be root! FAILED: %s\n", fname);
+    // done to reduce attack vectors and minimize accidental changes of files outside of og_hardware_dim program
+    // don't require write permissions here since files defining max_brightness are often read only
+    if (!isFileOnlyControlledByRoot(fname)) {
+        fprintf(stderr,
+        "ERROR: %s must meet the following requirements:\n"
+            "\towner = root\n"
+            "\tgroup = root\n"
+            "\towner permissions must include r\n"
+            "\tgroup permissions must include r\n"
+            "\tother's permissions only have r at most\n"
+            "\tEx. -r--r--r-- root root %s\n"
+            "\tEx. -rw-r----- root root %s\n",
+        fname, fname, fname);
         exit(127);
     }
 
