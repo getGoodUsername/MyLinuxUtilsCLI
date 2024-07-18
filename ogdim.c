@@ -20,7 +20,7 @@ int main(const int argc, const char *const *argv)
     }
 
     int error_code_num = 1;
-    const int user_input_brightness_value = (argc > 1) ? atoi(argv[1]) : 1;
+    const int user_input_dim_brightness_value = (argc > 1) ? atoi(argv[1]) : 1;
     const char* const pre_dimstate_brightness_fname = (argc > 2) ? argv[2] : "/home/spaceface102/.og.d/Dim/brightness_tracker";
     const char* const curr_brightness_ctl_fname = (argc > 3) ? argv[3] : "/sys/class/backlight/intel_backlight/brightness";
     const char* const max_brightness_fname = (argc > 4) ? argv[4] : "/sys/class/backlight/intel_backlight/max_brightness";
@@ -60,8 +60,8 @@ int main(const int argc, const char *const *argv)
         return 0;
     }
 
-    const int DIM_BRIGHTNESS_VALUE = bindInt(user_input_brightness_value, MAX_BRIGHTNESS, MIN_BRIGHTNESS);
-    if (user_input_brightness_value != DIM_BRIGHTNESS_VALUE) fprintf(stderr, "WARNING: Input dim brightness value was invalid! Changed to %d. Value was: %d\n", user_input_brightness_value, DIM_BRIGHTNESS_VALUE);
+    const int DIM_BRIGHTNESS_VALUE = bindInt(user_input_dim_brightness_value, MAX_BRIGHTNESS, MIN_BRIGHTNESS);
+    if (user_input_dim_brightness_value != DIM_BRIGHTNESS_VALUE) fprintf(stderr, "WARNING: Input dim brightness value was invalid! Changed to %d. Value was: %d\n", user_input_dim_brightness_value, DIM_BRIGHTNESS_VALUE);
 
     fprintf(pre_dimstate_brightness_fhandle, "%d", curr_brightness);
     fprintf(curr_brightness_ctl_fhandle, "%d", DIM_BRIGHTNESS_VALUE);
