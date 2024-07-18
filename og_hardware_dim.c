@@ -20,17 +20,16 @@ int clamp(int value, int min_inclusive, int max_inclusive);
 // executable is expected to owned by root and have setuid active in file permissions, else can't edit brightness file
 int main(const int argc, const char *const *argv)
 {
-    // -h or --help prints usage and exits
-    if(argc > 1 && (!strncmp(argv[1], "-h", sizeof("-h")) || !strncmp(argv[1], "--help", sizeof("--help")))) {
-        fprintf(stderr, "Usage: %s [dim brightness int] [pre dim-state brightness value fname] [brightness controller fname] [max brightness fname]\n", argv[0]);
+    if (!(argc > 4)) {
+        fprintf(stderr, "Usage: %s <DIM BRIGHTNESS VALUE> <STORE CURRENT HARDWARE BRIGHTNESS FILE> <HARDWARE BRIGHTNESS CONTROL FILE> <MAX HARDWARE BRIGHTNESS FILE>\n", argv[0]);
         return 0;
     }
 
     int error_code_num = 1;
-    const int user_input_dim_brightness_value = (argc > 1) ? atoi(argv[1]) : 1;
-    const char* const pre_dimstate_brightness_fname = (argc > 2) ? argv[2] : "/home/spaceface102/.og.d/Dim/hardware_brightness_tracker";
-    const char* const curr_brightness_ctl_fname = (argc > 3) ? argv[3] : "/sys/class/backlight/intel_backlight/brightness";
-    const char* const max_brightness_fname = (argc > 4) ? argv[4] : "/sys/class/backlight/intel_backlight/max_brightness";
+    const int user_input_dim_brightness_value = atoi(argv[1]);
+    const char* const pre_dimstate_brightness_fname = argv[2];
+    const char* const curr_brightness_ctl_fname = argv[3];
+    const char* const max_brightness_fname = argv[4];
     FILE* const pre_dimstate_brightness_fhandle = fileOpener(pre_dimstate_brightness_fname, "r", error_code_num++);
     FILE* const curr_brightness_ctl_fhandle = fileOpener(curr_brightness_ctl_fname, "r", error_code_num++);
     FILE* const max_brightness_fhandle = fileOpener(max_brightness_fname, "r", error_code_num++);
@@ -86,7 +85,7 @@ bool isFileOnlyControlledByRoot(const char* fname)
     struct stat statbuf;
 
     if (stat(fname, &statbuf) == -1) {
-        fprintf(stderr, "ERROR: %s\tstat wasn't able to get info about %s\n", strerror(errno), fname);
+        fprintf(stderr, "ERROR: %s, stat wasn't able to get info about %s\n", strerror(errno), fname);
         exit(127);
     }
 
@@ -131,7 +130,7 @@ void changeFileMode(FILE* fhandle, const char* fpath, const char* mode, int erro
     FILE* fp = freopen(NULL, mode, fhandle);
 
     if (fp == NULL) {
-        fprintf(stderr, "ERROR: %s\tWasn't able to change file mode to '%s' on %s\n", strerror(errno), mode, fpath);
+        fprintf(stderr, "ERROR: %s, Wasn't able to change file mode to '%s' on %s\n", strerror(errno), mode, fpath);
         exit(error_code);
     }
 }
