@@ -61,7 +61,7 @@ int main(const int argc, const char *const *argv)
     }
 
     const int DIM_BRIGHTNESS_VALUE = bindInt(user_input_dim_brightness_value, MAX_BRIGHTNESS, MIN_BRIGHTNESS);
-    if (user_input_dim_brightness_value != DIM_BRIGHTNESS_VALUE) fprintf(stderr, "WARNING: Input dim brightness value was invalid! Changed to %d. Value was: %d\n", user_input_dim_brightness_value, DIM_BRIGHTNESS_VALUE);
+    if (user_input_dim_brightness_value != DIM_BRIGHTNESS_VALUE) fprintf(stderr, "WARNING: Input dim brightness value was invalid! Changed to %d. Value was: %d\n", DIM_BRIGHTNESS_VALUE, user_input_dim_brightness_value);
 
     fprintf(pre_dimstate_brightness_fhandle, "%d", curr_brightness);
     fprintf(curr_brightness_ctl_fhandle, "%d", DIM_BRIGHTNESS_VALUE);
