@@ -23,9 +23,8 @@ function isOgdimRunningInValidEnv
 {
     # only run program from symbolic link to make handling of software
     # and hardware versions of ogdim cleaner and make version ctl easier
-    local -r self="$0"
-    if ! [[ -L "$self" ]]; then exit 1; fi
-
+    if ! [[ -L "$0" ]]; then return 1; fi
+    if [[ -z "$OG_DIM_DIR" ]]; then return 2; fi
 }
 
 function getUserInputFilePath
@@ -69,26 +68,82 @@ function initHardwareDim
     read -rp 'Enable hardware dimming? (must have software dimmable backlight) [y/n]: ' response
     if grep -q -v -i '^y' <<< "$response"; then return 0; fi
 
+    local -r brightness_ctl="$(getUserInputFilePath "Provide full path to brightness controller file: ")"
+    local -r brightness_max="$(getUserInputFilePath "Provide full path to brightness max file: ")"
+    local -r sourceCode="$(getUserInputFilePath "Provide full path to hardware dim source code: ")"
+
+    set -v
+    ln -s "${brightness_ctl}" "$(getFileName hw_brightness_ctl)"
+    ln -s "${brightness_max}" "$(getFileName max_hw_brightness)"
+    ln -s "${sourceCode}" "$(getFileName og_hw_dim_source_code)"
+    set +v
+
     touch "$(getFileName og_hw_dim_enabled)" # if file exists, hw dim is enabled
 
-    local -r sourceCode="$(getUserInputFilePath "Provide full path to hardware dim source code: ")"
-    ln -s "${sourceCode}" "$(getFileName og_hw_dim_source_code)"
+    # og_hardware_dim requires tracker file to be owned by root and have
+    # restrictive permissions, since set uid on exec, need to be safe!
+    local -r brightness_tracker="$(getFileName hw_brightness_tracker)"
+    touch "$brightness_tracker"
+    sudo chown root:root "$brightness_tracker"
+    sudo chmod 644 "$brightness_tracker"
 }
 
 
 function initSetup
 {
-    if ! isOgdimRunningInValidEnv; then exit 1; fi
+    if ! isOgdimRunningInValidEnv; then
+    {
+        local -ar error_messages=(
+            "$0 must be a symbolic link to original file in my linux utils folder!"
+            "OG_DIM_DIR environment variable must be set!"
+        )
+        local -ir error_code="$?"
+        local -ir error_index=$(( error_code - 1 ))
 
-    mkdir -p "${OG_DIM_DIR}"
-    read -rp 'Enable hardware dimming (must have software dimmable backlight)'
+        echo "${error_messages["$error_index"]}"
+        exit 1
+    } 1>&2
+    fi
+
+    mkdir -p "$OG_DIM_DIR"
+    initHardwareDim
 }
 
-case "$1" in
-    --init)
+function runDim
+{
+    local -ri software_dim_value="$1"
+    local -ri hardware_dim_value="$2"
 
-        ;;
-esac
+    if isHardwareDimEnabled; then
+        updateHardwareDimExecutable
+        "$(getFileName og_hw_dim_exec)" "$hardware_dim_value" "$(getFileName hw_brightness_tracker)" "$(getFileName hw_brightness_tracker)"
+    fi
+}
+
+function main
+{
+    local    software_dim_value
+    local -i hardware_dim_value
+
+    case "$1" in
+        --init)
+
+            ;;
+        [0-9]*)
+            software_dim_value=$1
+            hardware_dim_value=${2:-1}
+            runDim "$software_dim_value" "$hardware_dim_value"
+            exit 0;
+            ;;
+        "")
+            software_dim_value=0.75
+            hardware_dim_value=1
+            runDim "$software_dim_value" "$hardware_dim_value"
+            exit 0;
+            ;;
+    esac
+
+}
 
 initSetup
 # "/home/spaceface102/.og.d/Dim/brightness_tracker";
