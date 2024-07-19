@@ -20,8 +20,6 @@ function getFilePath
     echo "${OG_DIM_DIR}/${fileNames["${key}"]}"
 }
 
-# might have to make getRealPath if og_hardware_dim doesn't play nice with symbolic links
-
 function isOgdimRunningInValidEnv
 {
     # only run program from symbolic link to make handling of software
@@ -223,3 +221,8 @@ main "$@"
 # "/sys/class/backlight/intel_backlight/brightness";
 # "/sys/class/backlight/intel_backlight/max_brightness";
 # OG_DIM_DIR
+
+# TODO
+# automatically reset/cleanup files that would be effected after error
+# allow user to reset to valid state manually
+# make more explicit if currently in dim state or not
