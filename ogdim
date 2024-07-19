@@ -3,13 +3,17 @@ function getFileName
 {
     local -r key="$1"
     local -Ar fileNames=(
+        # hardware dim related files
         ["hw_brightness_tracker"]="hardware_brightness_tracker"
         ["hw_brightness_ctl"]="hardware_brightness_controller"
         ["max_hw_brightness"]="max_hardware_brightness"
+        ["og_hw_dim_enabled"]="og_hardware_dim_enabled"
+        ["og_hw_dim_source_code"]="og_hardware_dim_source_code.c"
+        ["og_hw_dim_exec"]="og_hardware_dim"
+
+        # software dim related files
         ["sw_brightness_tracker"]="software_brightness_tracker"
         ["xrandr_verbose_cache"]="software_dim_buffer"
-        ["og_hw_dim_enabled"]="og_hardware_dim_enabled"
-        ["og_hw_source_code"]="og_hardware_source_code.c"
     );
 
     echo "${OG_DIM_DIR}/${fileNames["${key}"]}"
@@ -24,12 +28,6 @@ function isOgdimRunningInValidEnv
 
 }
 
-
-function createHardwareDimExecutable
-{
-    echo ''
-}
-
 function getUserInputFilePath
 {
     local -r prompt="$1"
@@ -38,11 +36,43 @@ function getUserInputFilePath
     echo "$path"
 }
 
+function makeHardwareDimExecutable
+{
+    local -r exec_name="$(getFileName og_hw_dim_exec)"
+    local -r source_name="$(getFileName og_hw_dim_source_code)"
+
+    gcc -O2 -o "$exec_name" "$source_name"
+    sudo chown root:root "$exec_name"
+    sudo chmod 4555 "$exec_name"
+}
+
+# will only recompile when source code is older than executable
+function updateHardwareDimExecutable
+{
+    # if it ever gets more complicated, its time to use a makefile
+    local -r exec_name="$(getFileName og_hw_dim_exec)"
+    local -r source_name="$(getFileName og_hw_dim_source_code)"
+    local -ri source_code_modification_time="$(stat -L -c'%Y' "$source_name")"
+    local -ri exec_modification_time="$(stat -L -c'%Y' "$exec_name")"
+
+    if ! [[ "$source_code_modification_time" -gt "$exec_modification_time" ]]; then return 0; fi
+    makeHardwareDimExecutable
+}
+
+function isHardwareDimEnabled
+{
+    [[ -e "$(getFileName og_hw_dim_enabled)" ]]
+}
+
 function initHardwareDim
 {
     read -rp 'Enable hardware dimming? (must have software dimmable backlight) [y/n]: ' response
     if grep -q -v -i '^y' <<< "$response"; then return 0; fi
-    touch "$(getFileName "og_hw_dim_enabled")" # if file exists, hw dim is enabled
+
+    touch "$(getFileName og_hw_dim_enabled)" # if file exists, hw dim is enabled
+
+    local -r sourceCode="$(getUserInputFilePath "Provide full path to hardware dim source code: ")"
+    ln -s "${sourceCode}" "$(getFileName og_hw_dim_source_code)"
 }
 
 
