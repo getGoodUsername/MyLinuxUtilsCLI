@@ -34,7 +34,12 @@ function getUserInputFilePath
 {
     local -r prompt="$1"
     read -rp "$prompt" path
-    [[ -e "$path" ]]
+
+    if ! [[ -e "$path" ]]; then
+        echo "Make sure $path exists!!!!"
+        return 1
+    fi
+
     echo "$path"
 }
 
@@ -87,6 +92,7 @@ function initHardwareDim
     # restrictive permissions, since set uid on exec, need to be safe!
     local -r brightness_tracker="$(getFilePath hw_brightness_tracker)"
     touch "$brightness_tracker"
+    echo 'Need root privileges to setup brightness tracker file for hardware dim executable!'
     sudo chown root:root "$brightness_tracker"
     sudo chmod 644 "$brightness_tracker"
 }
