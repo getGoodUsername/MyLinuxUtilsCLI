@@ -41,12 +41,12 @@ int main(const int argc, const char *const *argv)
 
     if (fscanf(max_brightness_fhandle, "%d", &MAX_BRIGHTNESS) < 1) {
         fprintf(stderr, "ERROR: Max brightness integer value not found in %s\n", max_brightness_fname);
-        exit(4);
+        exit(error_code_num++);
     }
 
     if (fscanf(curr_brightness_ctl_fhandle, "%d", &curr_brightness) < 1) {
         fprintf(stderr, "ERROR: Current brightness integer value not found in %s\n", curr_brightness_ctl_fname);
-        exit(5);
+        exit(error_code_num++);
     }
     {
         const int old_curr_brightness = curr_brightness;
@@ -86,7 +86,7 @@ bool isFileOnlyControlledByRoot(const char* fname)
 
     if (stat(fname, &statbuf) == -1) {
         fprintf(stderr, "ERROR: %s, stat wasn't able to get info about %s\n", strerror(errno), fname);
-        exit(127);
+        exit(126);
     }
 
     const bool is_owned_by_root = statbuf.st_uid == 0 && statbuf.st_gid == 0;
@@ -99,8 +99,10 @@ bool isFileOnlyControlledByRoot(const char* fname)
 
 FILE* fileOpener(const char* const fname, const char* const mode, int error_code)
 {
-    // done to reduce attack vectors and minimize accidental changes of files outside of og_hardware_dim program
-    // don't require write permissions here since files defining max_brightness are often read only
+    // since program is expected to have set uid on need to be stricter.
+    // done to reduce attack vectors and minimize accidental changes of
+    // files outside of og_hardware_dim program don't require write
+    // permissions here since files defining max_brightness are often read only
     if (!isFileOnlyControlledByRoot(fname)) {
         fprintf(stderr,
         "ERROR: %s must meet the following requirements:\n"

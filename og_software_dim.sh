@@ -36,7 +36,7 @@ function unDim
     local -r software_brightness_store_file="$1"
     while read -r line; do
         # shellcheck disable=SC2086
-        changeBrightness $line; # want line to be split into two differnet args <display> <brightness_val>
+        changeBrightness $line; # want line to be split into two different args <display> <brightness_val>
     done < "$software_brightness_store_file"
     truncate --size=0 "$software_brightness_store_file" # clear file to designate not dim yet
 }
@@ -59,7 +59,7 @@ function main
     software_brightness_store_file="$2"
     cached_xrandr_verbose_file="$3"
 
-    xrandr --verbose >| "$cached_xrandr_verbose_file" # xrandr takes quite a while to excute, do only once.
+    xrandr --verbose >| "$cached_xrandr_verbose_file" # xrandr takes quite a while to execute, do only once.
     if isAlreadyDim "$software_brightness_store_file"; then
         unDim "$software_brightness_store_file"
     else
