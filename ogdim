@@ -206,6 +206,8 @@ function main
 
 }
 
+main "$@"
+
 # "/home/spaceface102/.og.d/Dim/brightness_tracker";
 # "/sys/class/backlight/intel_backlight/brightness";
 # "/sys/class/backlight/intel_backlight/max_brightness";
