@@ -37,7 +37,7 @@ function getUserInputFilePath
 
     if ! [[ -e "$path" ]]; then
         echo "Make sure $path exists!!!!"
-        return 1
+        exit 1
     fi
 
     echo "$path"
