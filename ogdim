@@ -49,8 +49,10 @@ function makeHardwareDimExecutable
     local -r source_name="$(getFilePath og_hw_dim_source_code)"
 
     gcc -O2 -o "$exec_name" "$source_name"
+    echo 'Need root privileges to setup og hardware dim executable!'
     sudo chown root:root "$exec_name"
     sudo chmod 4555 "$exec_name"
+    echo 'Finished setting up og hardware dim!!'
 }
 
 # will only recompile when source code is older than executable
@@ -97,7 +99,7 @@ function initHardwareDim
     echo 'Need root privileges to setup brightness tracker file for hardware dim executable!'
     sudo chown root:root "$brightness_tracker"
     sudo chmod 644 "$brightness_tracker"
-
+    echo 'Finished setting up brightness tracker!'
     makeHardwareDimExecutable
 }
 
