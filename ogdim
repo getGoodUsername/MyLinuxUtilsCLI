@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-function getFileName
+function getFilePath
 {
     local -r key="$1"
     local -Ar fileNames=(
@@ -14,10 +14,13 @@ function getFileName
         # software dim related files
         ["sw_brightness_tracker"]="software_brightness_tracker"
         ["xrandr_verbose_cache"]="software_dim_buffer"
+        ["og_sw_dim_exec"]="og_software_dim"
     );
 
     echo "${OG_DIM_DIR}/${fileNames["${key}"]}"
 }
+
+# might have to make getRealPath if og_hardware_dim doesn't play nice with symbolic links
 
 function isOgdimRunningInValidEnv
 {
@@ -37,8 +40,8 @@ function getUserInputFilePath
 
 function makeHardwareDimExecutable
 {
-    local -r exec_name="$(getFileName og_hw_dim_exec)"
-    local -r source_name="$(getFileName og_hw_dim_source_code)"
+    local -r exec_name="$(getFilePath og_hw_dim_exec)"
+    local -r source_name="$(getFilePath og_hw_dim_source_code)"
 
     gcc -O2 -o "$exec_name" "$source_name"
     sudo chown root:root "$exec_name"
@@ -49,8 +52,8 @@ function makeHardwareDimExecutable
 function updateHardwareDimExecutable
 {
     # if it ever gets more complicated, its time to use a makefile
-    local -r exec_name="$(getFileName og_hw_dim_exec)"
-    local -r source_name="$(getFileName og_hw_dim_source_code)"
+    local -r exec_name="$(getFilePath og_hw_dim_exec)"
+    local -r source_name="$(getFilePath og_hw_dim_source_code)"
     local -ri source_code_modification_time="$(stat -L -c'%Y' "$source_name")"
     local -ri exec_modification_time="$(stat -L -c'%Y' "$exec_name")"
 
@@ -60,7 +63,7 @@ function updateHardwareDimExecutable
 
 function isHardwareDimEnabled
 {
-    [[ -e "$(getFileName og_hw_dim_enabled)" ]]
+    [[ -e "$(getFilePath og_hw_dim_enabled)" ]]
 }
 
 function initHardwareDim
@@ -73,16 +76,16 @@ function initHardwareDim
     local -r sourceCode="$(getUserInputFilePath "Provide full path to hardware dim source code: ")"
 
     set -v
-    ln -s "${brightness_ctl}" "$(getFileName hw_brightness_ctl)"
-    ln -s "${brightness_max}" "$(getFileName max_hw_brightness)"
-    ln -s "${sourceCode}" "$(getFileName og_hw_dim_source_code)"
+    ln -s "${brightness_ctl}" "$(getFilePath hw_brightness_ctl)"
+    ln -s "${brightness_max}" "$(getFilePath max_hw_brightness)"
+    ln -s "${sourceCode}" "$(getFilePath og_hw_dim_source_code)"
     set +v
 
-    touch "$(getFileName og_hw_dim_enabled)" # if file exists, hw dim is enabled
+    touch "$(getFilePath og_hw_dim_enabled)" # if file exists, hw dim is enabled
 
     # og_hardware_dim requires tracker file to be owned by root and have
     # restrictive permissions, since set uid on exec, need to be safe!
-    local -r brightness_tracker="$(getFileName hw_brightness_tracker)"
+    local -r brightness_tracker="$(getFilePath hw_brightness_tracker)"
     touch "$brightness_tracker"
     sudo chown root:root "$brightness_tracker"
     sudo chmod 644 "$brightness_tracker"
@@ -91,6 +94,8 @@ function initHardwareDim
 
 function initSetup
 {
+    echo 'Starting init setup'
+    echo 'Checking ogdim environment'
     if ! isOgdimRunningInValidEnv; then
     {
         local -ar error_messages=(
@@ -104,20 +109,59 @@ function initSetup
         exit 1
     } 1>&2
     fi
+    echo 'ogdim environment: passed'
+
 
     mkdir -p "$OG_DIM_DIR"
     initHardwareDim
+    echo 'Finished init setup!'
+}
+
+function runHardwareDim
+{
+    local -ri hardware_dim_value="$1"
+    updateHardwareDimExecutable
+    "$(getFilePath og_hw_dim_exec)" "$hardware_dim_value" \
+        "$(getFilePath hw_brightness_tracker)" \
+        "$(getFilePath hw_brightness_ctl)" \
+        "$(getFilePath max_hw_brightness)"
+}
+
+function isValidSoftwareDimValue
+{
+    local -r software_dim_value="$1"
+    # bc return 1 when true, 0 when false
+    local -ri upper_bound_check="$(bc <<< "$software_dim_value <= 1.0")"
+    local -ri lower_bound_check="$(bc <<< "$software_dim_value >= 0.1")"
+
+    [[ "$upper_bound_check" -gt 0 && "$lower_bound_check" -gt 0 ]]
+}
+
+function runSoftwareDim
+{
+    local -r software_dim_value="$1"
+
+    if ! isValidSoftwareDimValue "$software_dim_value"; then
+    {
+        echo 'Invalid software dim value!'
+        echo "Input: $software_dim_value"
+        echo "Accepted range: [0.1, 1.0]"
+        exit 1
+    } 1>&2
+    fi
+
+    "$(getFilePath og_sw_dim_exec)" "$software_dim_value" \
+        "$(getFilePath sw_brightness_tracker)" \
+        "$(getFilePath xrandr_verbose_cache)"
 }
 
 function runDim
 {
-    local -ri software_dim_value="$1"
+    local -r software_dim_value="$1"
     local -ri hardware_dim_value="$2"
 
-    if isHardwareDimEnabled; then
-        updateHardwareDimExecutable
-        "$(getFileName og_hw_dim_exec)" "$hardware_dim_value" "$(getFileName hw_brightness_tracker)" "$(getFileName hw_brightness_tracker)"
-    fi
+    if isHardwareDimEnabled; then runHardwareDim "$hardware_dim_value"; fi
+    runSoftwareDim "$software_dim_value"
 }
 
 function main
@@ -145,7 +189,6 @@ function main
 
 }
 
-initSetup
 # "/home/spaceface102/.og.d/Dim/brightness_tracker";
 # "/sys/class/backlight/intel_backlight/brightness";
 # "/sys/class/backlight/intel_backlight/max_brightness";
