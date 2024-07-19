@@ -13,7 +13,7 @@ function getFilePath
 
         # software dim related files
         ["sw_brightness_tracker"]="software_brightness_tracker"
-        ["xrandr_verbose_cache"]="software_dim_buffer"
+        ["sw_dim_xrandr_verbose_cache"]="software_dim_buffer"
         ["og_sw_dim_exec"]="og_software_dim"
     );
 
@@ -91,6 +91,20 @@ function initHardwareDim
     sudo chmod 644 "$brightness_tracker"
 }
 
+function initSoftwareDim
+{
+    local -r sw_dim_script="$(getUserInputFilePath "Provide full path to software dim executable script: ")"
+
+    set -v
+    ln -s "$sw_dim_script" "$(getFilePath og_sw_dim_exec)"
+    set +v
+
+    # no special permissions on the following files since
+    # og_software_dim runs in normal user mode not root
+    touch "$(getFilePath sw_brightness_tracker)"
+    touch "$(getFilePath sw_dim_xrandr_verbose_cache)"
+}
+
 
 function initSetup
 {
@@ -114,6 +128,7 @@ function initSetup
 
     mkdir -p "$OG_DIM_DIR"
     initHardwareDim
+    initSoftwareDim
     echo 'Finished init setup!'
 }
 
@@ -152,7 +167,7 @@ function runSoftwareDim
 
     "$(getFilePath og_sw_dim_exec)" "$software_dim_value" \
         "$(getFilePath sw_brightness_tracker)" \
-        "$(getFilePath xrandr_verbose_cache)"
+        "$(getFilePath sw_dim_xrandr_verbose_cache)"
 }
 
 function runDim
@@ -171,7 +186,9 @@ function main
 
     case "$1" in
         --init)
-
+            initSetup
+            echo "Ready to use ogdim! Go ahead give it a try!"
+            exit 0;
             ;;
         [0-9]*)
             software_dim_value=$1
