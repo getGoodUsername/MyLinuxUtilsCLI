@@ -36,8 +36,8 @@ function getUserInputFilePath
     read -rp "$prompt" path
 
     if ! [[ -e "$path" ]]; then
-        echo "Make sure $path exists!!!!"
-        exit 1
+        echo "Make sure $path exists!!!!" 1>&2
+        return 1
     fi
 
     echo "$path"
@@ -76,9 +76,10 @@ function initHardwareDim
     read -rp 'Enable hardware dimming? (must have software dimmable backlight) [y/n]: ' response
     if grep -q -v -i '^y' <<< "$response"; then return 0; fi
 
-    local -r brightness_ctl="$(getUserInputFilePath "Provide full path to brightness controller file: ")"
-    local -r brightness_max="$(getUserInputFilePath "Provide full path to brightness max file: ")"
-    local -r sourceCode="$(getUserInputFilePath "Provide full path to hardware dim source code: ")"
+    # || exit 1 is done so if getUserInputFilePath returns a non zero code, the program stops
+    local -r brightness_ctl="$(getUserInputFilePath "Provide full path to brightness controller file: ")" || exit 1
+    local -r brightness_max="$(getUserInputFilePath "Provide full path to brightness max file: ")" || exit 1
+    local -r sourceCode="$(getUserInputFilePath "Provide full path to hardware dim source code: ")" || exit
 
     set -v
     ln -s "${brightness_ctl}" "$(getFilePath hw_brightness_ctl)"
@@ -99,7 +100,7 @@ function initHardwareDim
 
 function initSoftwareDim
 {
-    local -r sw_dim_script="$(getUserInputFilePath "Provide full path to software dim executable script: ")"
+    local -r sw_dim_script="$(getUserInputFilePath "Provide full path to software dim executable script: ")" || exit 1
 
     set -v
     ln -s "$sw_dim_script" "$(getFilePath og_sw_dim_exec)"
