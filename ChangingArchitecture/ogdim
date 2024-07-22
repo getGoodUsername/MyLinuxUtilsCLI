@@ -258,3 +258,18 @@ main "$@"
 # though ogdim will have to do some basic check to ensure security or I can make
 # some sort of ogdim user/group so only ogdim exec can use the og_hardware_dim program
 # with set uid permissions
+
+# tasks being moved to ogdim
+# make and store information about current brightness
+# validating brightness values
+# checking hardware max brightness
+
+
+# defining new behavior for ogdim:
+# when no args on ogdim, make default dim, or revert back to original pre dim brightness
+# when there are args on ogdim, just change brightness to that value without overwriting
+#   any stored brightness state
+# make an option where user can define new brightness values to store to revert to when
+#   going back to non dim state
+# allow user to change default brightness values to revert to incase of error or maybe when
+#   -d option is present
