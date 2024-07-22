@@ -28,7 +28,7 @@
     #error Please use -D during compilation to define HW_BRIGHTNESS_MIN_INT where it evaluates int value for min brightness allowed
 #endif
 
-#define STRINGIFY(name) #name
+#define STRINGIFY(x) #x
 
 int main(const int argc, const char *const *argv);
 bool isFileOnlyControlledByRoot(const char* fname);
@@ -45,8 +45,7 @@ int main(const int argc, const char *const *argv)
     }
 
     const int brightness = clamp(atoi(argv[1]), HW_BRIGHTNESS_MIN_INT, HW_BRIGHTNESS_MAX_INT);
-    const char* const brightness_ctl_fname = argv[3];
-    FILE* const brightness_ctl_fhandle = fileOpener(STRINGIFY(HW_BRIGHTNESS_CTL_FNAME), "w", 1);
+    FILE* const brightness_ctl_fhandle = fileOpener(HW_BRIGHTNESS_CTL_FNAME, "w", 1);
     fprintf(brightness_ctl_fhandle, "%d", brightness);
 
     return 0;

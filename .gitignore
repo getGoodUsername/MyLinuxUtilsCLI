@@ -2,3 +2,5 @@
 test.sh
 .vscode/
 .*.swp
+**/a.out
+ogchore
