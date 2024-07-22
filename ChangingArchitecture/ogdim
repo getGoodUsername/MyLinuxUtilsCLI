@@ -91,8 +91,11 @@ function updateHardwareDimExecutable
     local -r source_name="$(getFile og_hw_dim_source_code)"
     local -ri source_code_modification_time="$(stat -L -c'%Y' "$source_name")"
     local -ri exec_modification_time="$(stat -L -c'%Y' "$exec_name")"
+    # have file to check checksum of file, just incase file didn't even change
+    # and was just touched
 
     if ! [[ "$source_code_modification_time" -gt "$exec_modification_time" ]]; then return 0; fi
+    echo 'Message about needing to recompile og hardware dim since source code changed'
     makeHardwareDimExecutable
 }
 
