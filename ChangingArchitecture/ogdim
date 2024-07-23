@@ -3,25 +3,23 @@
 # must have already validated with isOgdimRunningInValidEnv
 # if file names ever change, this is where you need to change them
 # assuming that ogdim ($0) lives within my managed git repo, and
-# all the other source files live there.
+# all the other source files live there too.
 function getSourceFilePath
 {
     local -r key="$1"
-    local -r repo_path="$(realpath "$0")"
-    local -Ar sourcePaths=(
-        # hardware dim related files
+    local -r repo_path="$(dirname "$(realpath "$0")")"
+    local -Ar source_paths=(
         ["hw_brightness_ctl"]="/sys/class/backlight/intel_backlight/brightness"
         ["max_hw_brightness"]="/sys/class/backlight/intel_backlight/max_brightness"
-        ["og_hw_dim_source_code"]="${repo_path}/og_hardware_dim.c"
-
-        # software dim related files
-        ["og_sw_dim_exec"]="${repo_path}/og_software_dim.sh"
+        ["og_hw_brightness_source_code"]="${repo_path}/og_hardware_dim.c"
     );
 
-    local -r result="${sourcePaths["${key}"]}"
+    local -r result="${source_paths["${key}"]}"
     if ! [[  -e "$result" ]]; then
     {
-        echo 'Please change getSourceFilePath function to reflect actual values'
+        # shellcheck disable=SC2128
+        echo "Please change function $FUNCNAME in $(basename "$0") to reflect actual source path"
+        echo "Tried to get: $key -> Result: $result"
         exit 127;
     } 1>&2
     fi
@@ -32,13 +30,13 @@ function getSourceFilePath
 function getFile
 {
     local -r key="$1"
-    local -Ar fileNames=(
+    local -Ar file_names=(
         # hardware dim related files
         ["hw_brightness_tracker"]="hardware_brightness_tracker"
         ["hw_brightness_ctl"]="hardware_brightness_controller"
         ["max_hw_brightness"]="max_hardware_brightness"
         ["og_hw_dim_enabled"]="og_hardware_dim_enabled"
-        ["og_hw_dim_source_code"]="og_hardware_dim_source_code.c"
+        ["og_hw_brightness_source_code"]="og_hardware_dim_source_code.c"
         ["og_hw_dim_exec"]="og_hardware_dim"
 
         # software dim related files
@@ -47,7 +45,7 @@ function getFile
         ["og_sw_dim_exec"]="og_software_dim"
     );
 
-    echo "${OG_DIM_DIR}/${fileNames["${key}"]}"
+    echo "${OG_DIM_DIR}/${file_names["${key}"]}"
 }
 
 function isOgdimRunningInValidEnv
@@ -74,7 +72,7 @@ function getUserInputFilePath
 function makeHardwareDimExecutable
 {
     local -r exec_name="$(getFile og_hw_dim_exec)"
-    local -r source_name="$(getFile og_hw_dim_source_code)"
+    local -r source_name="$(getFile og_hw_brightness_source_code)"
 
     gcc -O2 -o "$exec_name" "$source_name"
     echo 'Need root privileges to setup og hardware dim executable!'
@@ -88,7 +86,7 @@ function updateHardwareDimExecutable
 {
     # if it ever gets more complicated, its time to use a makefile
     local -r exec_name="$(getFile og_hw_dim_exec)"
-    local -r source_name="$(getFile og_hw_dim_source_code)"
+    local -r source_name="$(getFile og_hw_brightness_source_code)"
     local -ri source_code_modification_time="$(stat -L -c'%Y' "$source_name")"
     local -ri exec_modification_time="$(stat -L -c'%Y' "$exec_name")"
     # have file to check checksum of file, just incase file didn't even change
@@ -109,7 +107,7 @@ function initHardwareDim
     read -rp 'Enable hardware dimming? (must have software dimmable backlight) [y/n]: ' response
     if grep -q -v -i '^y' <<< "$response"; then return 0; fi
 
-    for key in 'hw_brightness_ctl' 'max_hw_brightness' 'og_hw_dim_source_code'; do
+    for key in 'hw_brightness_ctl' 'max_hw_brightness' 'og_hw_brightness_source_code'; do
         ln -s "$(getSourceFilePath "$key")" "$(getFile "$key")"
     done
 
