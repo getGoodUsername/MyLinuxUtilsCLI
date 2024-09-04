@@ -1,27 +1,28 @@
 #!/usr/bin/bash
 
+# shellcheck shell=bash
+# shellcheck disable=SC2312,SC2250
+
 # must have already validated with isOgdimRunningInValidEnv
 # if file names ever change, this is where you need to change them
 # assuming that ogdim ($0) lives within my managed git repo, and
-# all the other source files live there.
+# all the other source files live there too.
 function getSourceFilePath
 {
     local -r key="$1"
-    local -r repo_path="$(realpath "$0")"
-    local -Ar sourcePaths=(
-        # hardware dim related files
+    local -r repo_path="$(dirname "$(realpath "$0")")"
+    local -Ar source_paths=(
         ["hw_brightness_ctl"]="/sys/class/backlight/intel_backlight/brightness"
         ["max_hw_brightness"]="/sys/class/backlight/intel_backlight/max_brightness"
-        ["og_hw_dim_source_code"]="${repo_path}/og_hardware_dim.c"
-
-        # software dim related files
-        ["og_sw_dim_exec"]="${repo_path}/og_software_dim.sh"
+        ["og_hw_brightness_source_code"]="${repo_path}/og_hardware_brightness.c"
     );
 
-    local -r result="${sourcePaths["${key}"]}"
+    local -r result="${source_paths["${key}"]}"
     if ! [[  -e "$result" ]]; then
     {
-        echo 'Please change getSourceFilePath function to reflect actual values'
+        # shellcheck disable=SC2128
+        echo "Please change function $FUNCNAME in $(basename "$0") to reflect actual source path"
+        echo "Tried to get: $key -> Result: $result"
         exit 127;
     } 1>&2
     fi
@@ -32,22 +33,21 @@ function getSourceFilePath
 function getFile
 {
     local -r key="$1"
-    local -Ar fileNames=(
-        # hardware dim related files
+    local -Ar file_names=(
+        # hardware brightness related files
+        ["og_hw_brightness_enabled"]="og_hardware_brightness_enabled"
         ["hw_brightness_tracker"]="hardware_brightness_tracker"
-        ["hw_brightness_ctl"]="hardware_brightness_controller"
-        ["max_hw_brightness"]="max_hardware_brightness"
-        ["og_hw_dim_enabled"]="og_hardware_dim_enabled"
-        ["og_hw_dim_source_code"]="og_hardware_dim_source_code.c"
-        ["og_hw_dim_exec"]="og_hardware_dim"
+        ["og_hw_brightness_source_code"]="og_hardware_brightness_source_code.c"
+        ["og_hw_brightness_exec"]="og_hardware_brightness"
+        # ["hw_brightness_ctl"]="hardware_brightness_controller"
+        # ["max_hw_brightness"]="max_hardware_brightness"
 
-        # software dim related files
+        # software brightness related files
         ["sw_brightness_tracker"]="software_brightness_tracker"
-        ["sw_dim_xrandr_verbose_cache"]="software_dim_buffer"
-        ["og_sw_dim_exec"]="og_software_dim"
+        ["sw_brightness_xrandr_verbose_cache"]="software_brightness_xrandr_cache"
     );
 
-    echo "${OG_DIM_DIR}/${fileNames["${key}"]}"
+    echo "${OG_DIM_DIR}/${file_names["${key}"]}"
 }
 
 function isOgdimRunningInValidEnv
@@ -71,71 +71,60 @@ function getUserInputFilePath
     echo "$path"
 }
 
-function makeHardwareDimExecutable
+function makeHardwareBrightnessExecutable
 {
-    local -r exec_name="$(getFile og_hw_dim_exec)"
-    local -r source_name="$(getFile og_hw_dim_source_code)"
+    local -r exec_name="$(getFile og_hw_brightness_exec)"
+    local -r source_name="$(getFile og_hw_brightness_source_code)"
 
     gcc -O2 -o "$exec_name" "$source_name"
-    echo 'Need root privileges to setup og hardware dim executable!'
+    echo 'Need root privileges to setup og hardware brightness executable!'
     sudo chown root:root "$exec_name"
     sudo chmod 4555 "$exec_name"
-    echo 'Finished setting up og hardware dim!!'
+    echo 'Finished setting up og hardware brightness!!'
 }
 
 # will only recompile when source code is older than executable
-function updateHardwareDimExecutable
+function updateHardwareBrightnessExecutable
 {
     # if it ever gets more complicated, its time to use a makefile
-    local -r exec_name="$(getFile og_hw_dim_exec)"
-    local -r source_name="$(getFile og_hw_dim_source_code)"
+    local -r exec_name="$(getFile og_hw_brightness_exec)"
+    local -r source_name="$(getFile og_hw_brightness_source_code)"
     local -ri source_code_modification_time="$(stat -L -c'%Y' "$source_name")"
     local -ri exec_modification_time="$(stat -L -c'%Y' "$exec_name")"
     # have file to check checksum of file, just incase file didn't even change
     # and was just touched
 
     if ! [[ "$source_code_modification_time" -gt "$exec_modification_time" ]]; then return 0; fi
-    echo 'Message about needing to recompile og hardware dim since source code changed'
-    makeHardwareDimExecutable
+    echo 'Message about needing to recompile og hardware brightness since source code changed'
+    makeHardwareBrightnessExecutable
 }
 
-function isHardwareDimEnabled
+function isHardwareBrightnessEnabled
 {
-    [[ -e "$(getFile og_hw_dim_enabled)" ]]
+    [[ -e "$(getFile og_hw_brightness_enabled)" ]]
 }
 
-function initHardwareDim
+function initHardwareBrightness
 {
     read -rp 'Enable hardware dimming? (must have software dimmable backlight) [y/n]: ' response
     if grep -q -v -i '^y' <<< "$response"; then return 0; fi
 
-    for key in 'hw_brightness_ctl' 'max_hw_brightness' 'og_hw_dim_source_code'; do
+    for key in 'hw_brightness_ctl' 'max_hw_brightness' 'og_hw_brightness_source_code'; do
         ln -s "$(getSourceFilePath "$key")" "$(getFile "$key")"
     done
 
-    touch "$(getFile og_hw_dim_enabled)" # if file exists, hw dim is enabled
+    touch "$(getFile og_hw_brightness_enabled)" # if file exists, hw brightness change is enabled
 
-    # og_hardware_dim requires tracker file to be owned by root and have
+    # og_hardware_brightness requires tracker file to be owned by root and have
     # restrictive permissions, since set uid on exec, need to be safe!
     local -r brightness_tracker="$(getFile hw_brightness_tracker)"
     touch "$brightness_tracker"
-    echo 'Need root privileges to setup brightness tracker file for hardware dim executable!'
+    echo 'Need root privileges to setup brightness tracker file for hardware brightness executable!'
     sudo chown root:root "$brightness_tracker"
     sudo chmod 644 "$brightness_tracker"
     echo 'Finished setting up brightness tracker!'
-    makeHardwareDimExecutable
+    makeHardwareBrightnessExecutable
 }
-
-function initSoftwareDim
-{
-    ln -s "$(getSourceFilePath og_sw_dim_exec)" "$(getFile og_sw_dim_exec)"
-
-    # no special permissions on the following files since
-    # og_software_dim runs in normal user mode not root
-    touch "$(getFile sw_brightness_tracker)"
-    touch "$(getFile sw_dim_xrandr_verbose_cache)"
-}
-
 
 function initSetup
 {
@@ -143,11 +132,11 @@ function initSetup
     echo 'Checking ogdim environment'
     if ! isOgdimRunningInValidEnv; then
     {
+        local -ir error_code="$?"
         local -ar error_messages=(
             "$0 must be a symbolic link to original file in my linux utils folder!"
             "OG_DIM_DIR environment variable must be set!"
         )
-        local -ir error_code="$?"
         local -ir error_index=$(( error_code - 1 ))
 
         echo "${error_messages["$error_index"]}"
@@ -158,47 +147,42 @@ function initSetup
 
 
     mkdir -p "$OG_DIM_DIR"
-    initHardwareDim
-    initSoftwareDim
+    initHardwareBrightness
     echo 'Finished init setup!'
 }
 
-function runHardwareDim
+function runHardwareBrightness
 {
-    local -ri hardware_dim_value="$1"
-    updateHardwareDimExecutable
-    "$(getFile og_hw_dim_exec)" "$hardware_dim_value" \
+    local -ri hardware_brightness_value="$1"
+    updateHardwareBrightnessExecutable
+    "$(getFile og_hw_brightness_exec)" "$hardware_brightness_value" \
         "$(getFile hw_brightness_tracker)" \
         "$(getFile hw_brightness_ctl)" \
         "$(getFile max_hw_brightness)"
 }
 
-function isValidSoftwareDimValue
+function isValidSoftwareBrightnessValue
 {
-    local -r software_dim_value="$1"
+    local -r software_brightness_value="$1"
     # bc return 1 when true, 0 when false
-    local -ri upper_bound_check="$(bc <<< "$software_dim_value <= 1.0")"
-    local -ri lower_bound_check="$(bc <<< "$software_dim_value >= 0.1")"
+    local -ri upper_bound_check="$(bc <<< "$software_brightness_value <= 1.0")"
+    local -ri lower_bound_check="$(bc <<< "$software_brightness_value >= 0.1")"
 
-    [[ "$upper_bound_check" -gt 0 && "$lower_bound_check" -gt 0 ]]
+    [[ "$upper_bound_check" -eq 1 && "$lower_bound_check" -eq 1 ]]
 }
 
-function runSoftwareDim
+function runSoftwareBrightness
 {
-    local -r software_dim_value="$1"
+    local -r software_brightness_value="$1"
 
-    if ! isValidSoftwareDimValue "$software_dim_value"; then
+    if ! isValidSoftwareBrightnessValue "$software_brightness_value"; then
     {
-        echo 'Invalid software dim value!'
-        echo "Input: $software_dim_value"
+        echo 'Invalid software brightness value!'
+        echo "Input: $software_brightness_value"
         echo "Accepted range: [0.1, 1.0]"
         exit 1
     } 1>&2
     fi
-
-    "$(getFile og_sw_dim_exec)" "$software_dim_value" \
-        "$(getFile sw_brightness_tracker)" \
-        "$(getFile sw_dim_xrandr_verbose_cache)"
 }
 
 function runDim
@@ -206,8 +190,8 @@ function runDim
     local -r software_dim_value="$1"
     local -ri hardware_dim_value="$2"
 
-    if isHardwareDimEnabled; then runHardwareDim "$hardware_dim_value"; fi
-    runSoftwareDim "$software_dim_value"
+    if isHardwareBrightnessEnabled; then runHardwareBrightness "$hardware_dim_value"; fi
+    runSoftwareBrightness "$software_dim_value"
 }
 
 function main
@@ -256,7 +240,7 @@ main "$@"
 # change architecture so ogdim decides when is already in dim state
 # and og_hardware/software_dim only change brightness and make no decisions
 # though ogdim will have to do some basic check to ensure security or I can make
-# some sort of ogdim user/group so only ogdim exec can use the og_hardware_dim program
+# some sort of ogdim user/group so only ogdim exec can use the og_hardware_brightness program
 # with set uid permissions
 
 # tasks being moved to ogdim
