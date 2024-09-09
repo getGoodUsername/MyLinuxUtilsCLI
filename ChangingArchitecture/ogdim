@@ -249,3 +249,5 @@ main "$@"
 #   going back to non dim state
 # allow user to change default brightness values to revert to incase of error or maybe when
 #   -d option is present
+# during init stage make so user can sweep though brightness and see how they look and choose a
+#   minimum brightness

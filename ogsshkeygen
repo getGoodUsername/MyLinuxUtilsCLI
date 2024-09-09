@@ -6,25 +6,25 @@
 
 if [[ $# -eq 0 ]]; then
 {
-	echo 'Please provide basename of keypair! (ex. testKey, github, schoolServer)'
-	echo 'usage: ogsshkeygen <name of key pair> <location to put new keys: default is ~/.ssh>'
+	echo 'Please provide basename of keypair! (ex. testKey, github, schoolServer)
+usage: ogsshkeygen \
+	<name of key pair> \
+	<comment to put in key: default is name of key pair> \
+	<KDF rounds: default is 100> \
+	<location to put new keys: default is ~/.ssh>'
+	echo $'Tip: use \'\' (empty string) as arg to force default'
 	exit 1
 } 1>&2
 fi
 
 baseName=$1
-sshKeyDirWithPossibleTrailingSlash=${2:-~/.ssh}
-sshKeyDir=$(sed 's/\/*$//' <<< "${sshKeyDirWithPossibleTrailingSlash}")
+comment="${2:-${baseName}}"
+kdfRounds="${3:-100}"
+sshKeyDirWithPossibleTrailingSlash=${4:-${HOME}/.ssh}
+sshKeyDir=$(sed 's:/*$::' <<< "${sshKeyDirWithPossibleTrailingSlash}")
 # sed pattern matches an unlimited of forward slashes at the end of the string and
-	# replaces them with nothing; thereby eliminating them. The pattern looks weird since
-	# I have to escape the forward slash since '/' is a special char for sed
+	# replaces them with nothing; thereby eliminating them. 
 
-
-
-# this command is virtually directly coppied from https://missing.csail.mit.edu/2020/command-line/
-# quick explanation of the command line options (from https://manpages.ubuntu.com/manpages/xenial/man1/ssh-keygen.1.html)
-	# -o "Save private keys using the new OpenSSH format rather than the more compatible PEM format", 
-		# therefore making it safer and more resistance to brute-force password cracking
 	# -a Controls the number of KDF (key derivation function) rounds used. The higher the number
 		# the harder it is to crack the password (in case keys are stolen)
 		# will result in slower password verification.
@@ -32,4 +32,4 @@ sshKeyDir=$(sed 's/\/*$//' <<< "${sshKeyDirWithPossibleTrailingSlash}")
 	# -f just details the file name of the key.
 	# -C allows you to add a comment to your key if your would like
 
-ssh-keygen -o -a 100 -t ed25519 -f "${sshKeyDir}"/"${baseName}"
+ssh-keygen -C "${comment}" -a "${kdfRounds}" -t ed25519 -f "${sshKeyDir}"/"${baseName}"
