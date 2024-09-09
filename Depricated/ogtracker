@@ -1,0 +1,354 @@
+#!/usr/bin/bash
+shopt -s nullglob
+
+function makeStandardFormatText()
+{
+    local -r unformattedText="$1"
+
+    # [[:space:]]  - [ \t\v\f\n\r]   All whitespace chars
+    # the output of tr is every [[:space:]]+ (a string of 1 or more of them)
+    # is converted to a single ' ' (normal "spacebar")
+    # the sed commands subsitutes the beginning of the line with a single space
+    # with nothing, and a single space with the end of the line with nothing.
+    # since the whole string is single line, this has the effect of removing
+    # leading and trailing spaces from the string.
+     tr -s '[:space:]' ' ' <<< "${unformattedText}" | sed 's/^ //; s/ $//;'
+}
+
+function makeSeperator()
+{
+	local -r repeatChar="$1"
+	local -r count="$2"
+	yes "${repeatChar}" | head -n "${count}" | paste -s -d ''
+}
+
+function limitStringWidthBlockify()
+{
+    local -r str="$1"
+    local -r length="$2"
+    fold -s -w"${length}" <<< "${str}"
+}
+
+function generateTrackableEvent()
+{
+    local -r taskName="$1"
+    local -r optionalDescription="$2"
+    local -r sepLength="$3"
+    local -r maxTaskNameLength=$(( sepLength * 80 / 100 ))
+    local -r maxDescriptionLength=$(( sepLength * 75 / 100 ))
+    local -r colorTimeName="$(tput setaf 181)"
+    local -r colorTaskName="$(tput setaf 168)"
+    local -r colorDescriptionName="$(tput setaf 255)"
+    local -r defaultTextColor="$(tput sgr0)"
+
+    echo -n "${colorTimeName}$(date +'%T') - ${colorTaskName}"
+    limitStringWidthBlockify "${taskName}" "${maxTaskNameLength}"
+    if [[ -n "${optionalDescription}" ]]; then
+        echo -n "${defaultTextColor}"
+        makeSeperator '-' "${sepLength}"
+        echo -n "${colorDescriptionName}"
+        echo -n "Notes:"
+        limitStringWidthBlockify "${optionalDescription}" "${maxDescriptionLength}" | sed 's/^/\t\t/'
+    fi
+    echo -n "${defaultTextColor}"
+    makeSeperator '_' "${sepLength}"
+}
+
+function getTodayTaskTrackerFilename()
+{
+	todoDir="${OG_TRACKER_DIR}" # enviorment variable
+	todaysFileName="$(date +'%F-%a').txt"
+	echo "${todoDir}/${todaysFileName}"
+}
+
+function getElapsedTime()
+{
+    # TODO, change to show only days, hours, minutes, and seconds . Everything else is trash...
+    # start and end are in seconds
+    # if end is blank, its assumed that get elapsed time from now. start -> now
+    local -r start="$1"
+    local -r end="${2:-"$(date +'%s')"}"
+    local -r elapsedTimeSec=$((end - start))
+    local -r seconds=$((elapsedTimeSec % 60))
+    local -r minutes=$(( ((elapsedTimeSec - seconds) % (60 * 60)) / 60 ))
+    local -r hours=$(( ((elapsedTimeSec - (minutes * 60) - seconds) % (60 * 60 * 24)) / (60 * 60) ))
+    local -r days=$(( (elapsedTimeSec - (hours * 60 * 60) - (minutes * 60) - seconds) / (60 * 60 * 24) ))
+
+    printf "%dd %02dh %02dm %02ds" ${days} ${hours} ${minutes} ${seconds}
+}
+
+function checkOutQueuedTask()
+{
+    # FIFO strucuture, when checking out a task will delelte the task
+    local -r queueFile="$1"
+    local -r startTimeFile="$2"
+    local -r taskFinderString="$3"
+
+    # was checking if there was NO matches with task finder string by checking number
+    # of matches var and if its 0. Though since I seperate computation of grep
+    # and store in matched queued tasks var and that then gets fed to wc -l with
+    # '<<<' I believe '<<<' will add a new line and that messes up the calculus
+    # instead now, just quickly qMindy made mung bean soup! EAT TIME!!!uitely look for the match in the file and if it fails
+    # will return non zero exit code which I negate.
+    if [[ -z "${taskFinderString}" ]] || ! grep -qi "${taskFinderString}" "${queueFile}"; then
+        echo "Checking out longest waiting task!" > "$(tty)"
+        echo "$(head -n 1 "${queueFile}") [Elapsed Time: $(getElapsedTime "$(head -n 1 "${startTimeFile}")")]"
+        sed -i '1d' "${queueFile}" "${startTimeFile}"
+        return 0
+    fi
+
+    # -n to number matches, even though -n shows line number of match, since each
+    # task name will be single line with `makeStandardFormatText` the line number
+    # of the task name will be the same as the number in the queue
+    local -r matchedQueuedTasks="$(grep -in "${taskFinderString}" "${queueFile}")"
+    local -r numberOfMatches="$(wc -l <<< "${matchedQueuedTasks}")"
+    local -r allowedTaskNumbers="$(cut -d':' -f1 <<< "${matchedQueuedTasks}")"
+    local taskNumber=0
+
+    if [[ "${numberOfMatches}" -gt 1 ]]; then
+        # > $(tty) is for getting output to user! https://stackoverflow.com/a/27777403/15054688
+        echo "Multiple tasks containing: \"${taskFinderString}\"! Please choose a specific task." > "$(tty)"
+        echo 'Tasks:' > "$(tty)"
+        ( sed 's/:/)\t/' <<< "${matchedQueuedTasks}" ) > "$(tty)" # it looks nicer with \d)\t.* intead of \d:.*
+
+        while ! grep -q "^${taskNumber}\$" <<< "${allowedTaskNumbers}" #^$ necuessary to match whole line or else 1 would match any n digit number with at least one '1'
+        do
+            read -rp 'Choose a task (number): ' taskNumber # by default output goes to user; don't have to redirect
+        done
+    else # number of matches eq 1; allowedTaskNumbers is eq to taskNumber
+        taskNumber="${allowedTaskNumbers}"
+    fi
+
+    echo "$(sed -n "${taskNumber}p" "${queueFile}") [Elapsed Time: $(getElapsedTime "$(sed -n "${taskNumber}p" "${startTimeFile}")")]"
+    sed -i "${taskNumber}d" "${queueFile}" "${startTimeFile}"   
+}
+
+function addTaskToQueue()
+{
+    local -r queueFile="$1"
+    local -r startTimeFile="$2"
+    local -r taskName="$3"
+
+    echo "${taskName}" >> "${queueFile}"
+    date +'%s' >> "${startTimeFile}" # unix time in seconds makes easier arithmatic later to figure out elapsed time
+}
+
+function help()
+{
+echo 'ogtracker
+A command line time tracker/diary faciliator.
+
+
+NOTE, a folder must be set asside to put all the files. Folder defined with
+exported enviorment variable "OG_TRACKER_DIR"
+
+
+USAGE:
+    ogtracker [OPTION] [TASK_TITLE/TASK_FINDER_STRING] [DESCRIPTION]
+
+    Only one option per ogtracker invocation!
+
+
+OPTIONS:
+    -s, --start, --push) TASK_TITLE [DESCRIPTION]
+            Often tasks involve starting said task and then finishing at a later
+            time. In order to avoid having to needlessly retype a task when reporting
+            completion, push the task queue first and simply pop it when you are done.
+            These commands push tasks to the queue.
+
+    -e, --end, --pop) [TASK_FINDER_STRING] [DESCRIPTION]
+            Pop a task off queue and mark done. If no positional arguments provided will
+            pop off the longest "waiting" queued task (FIFO). The task finder string is
+            useful if there are more than one queued up tasks and you want to finish a
+            specific task. Just type in a snippet and ogtracker will find the task. If
+            there are more than one task with the same snippet, ogtracker will present
+            the tasks and ask you to pick one.
+
+    -q, --queue)
+            Forgot what you queued up? Take a look with this option.
+
+    -l) [TRACKER_NUMBER]
+            ogtracker -l -1 displays the latest tracker file. ogtracker -l 0
+            displays the oldest, and first, tracker file. Think about the tracker
+            files being in a zero indexed array from oldest to newest. ogtracker -l
+            is equivalent to ogtracker -l -1. NOTE, ogtracker -l is not necessarily
+            equivalent to "ogtracker" with no arguments. ogtracker will always display
+            todays tracker file. On days where no tracking has been done, ogtracker will
+            print to stderr. ogtracker -l will always print the latest tracker file, unless
+            of course there are no tracker files at all. In which case it will also print
+            to stderr.
+
+    --help)
+            Lost and confused? Read the help page!
+
+EXAMPLES:
+    ogtracker "crush update" "they are sooo dreamy!"
+    ogtracker -s "going on a run" "24 miles, one day, light work."
+    ogtracker -e
+    ogtracker -e "cook" "finished cooking! Note to self: herbs and beef taste amazing!"
+    ogtracker -q
+    ogtracker -l
+    ogtracker
+    ogtracker --help
+'
+}
+
+function displayTodayTracker()
+{
+    local -r todayTrackerFname="$1"
+
+    if [[ -f "${todayTrackerFname}" ]]; then
+        bat "${todayTrackerFname}"
+        return 0;
+    fi
+
+    local -r errorRed="$(tput setaf 1)"
+    local -r defaultTextColor="$(tput sgr0)"
+
+    {
+        echo -n "${errorRed}"
+        echo 'No tracking has been done for today yet!'
+        echo $'Can\'t list out todays tasks if you there aren\'t none!'
+        echo 'Look at: ogtracker --help'
+        echo 'Try: ogtracker <task name> <descirpiton>'
+        # keep default text color contorol within stderr output block
+        # to avoid outputing anything to stdout. This will help keep
+        # programatic error checking straight forward and still has
+        # the desired effect of going back to default coloring for stdout also.
+        echo -n "${defaultTextColor}"
+    } >&2
+
+}
+
+function main()
+{
+    mkdir -p "${OG_TRACKER_DIR}" # just make sure dir exits
+
+    local -r SEPERATOR_LENGTH=65
+    local -r QUEUED_TASKS_FILENAME="${OG_TRACKER_DIR}/.queuedTasks"
+    local -r START_TIME_QUEUED_TASKS="${OG_TRACKER_DIR}/.startTimeQueuedTask"
+    local -r todayTrackerFname="$(getTodayTaskTrackerFilename)"
+
+    # avoids error checking on displaying queue file
+    # don't do this with tracker file since checking if the file exists
+    # is the mechanisim being used to see if any new addiitions have been
+    # made this day
+    # In addition, avoid ensuring that today tracker file is made
+    # since I don't want to have accidently empty tracker files clogging
+    # up the folder if I don't need to. Having it like this allows
+    # for easier future analysis of the days I tracked and it wont
+    # get mucked up by an empty file automatically being made because
+    # I did ogtracker --help or ogtracker --queue
+    # And that also justifies the reason to always make sure that the queue
+    # files being present; there will always be a predefined max number of
+    # them, bounded, while the task tracker files are unbounded in size/count
+    touch "${QUEUED_TASKS_FILENAME}"
+    touch "${START_TIME_QUEUED_TASKS}"
+
+    if [[ $# -eq 0 ]]; then
+        displayTodayTracker "${todayTrackerFname}"
+        return 0
+    fi
+
+    # START: format all arguments
+    {
+        local unformattedArgs=()
+        for arg in "$@"
+        do
+            unformattedArgs+=("$(makeStandardFormatText "${arg}")")
+        done
+
+        # https://stackoverflow.com/a/13762614
+        set -- "${unformattedArgs[@]}" # replace old with new args
+    }
+    # END: format all arguments
+
+    local taskName
+    local optionalDescription
+    case "$1" in
+        -s|--start|--push)
+            if [[ $# -lt 2 ]]; then
+                echo 'Missing task name!' 1>&2
+                exit 1
+            fi
+
+            taskName="$2"
+            optionalDescription="$3"
+            addTaskToQueue "${QUEUED_TASKS_FILENAME}" "${START_TIME_QUEUED_TASKS}" "${taskName}"
+            taskName="STARTED: ${taskName}"
+            # only add "STARTED: " to task name after it has been added to queue to avoid
+            # having "STARTED: " be part of the name when stored for future
+            ;;
+        -e|--end|--pop)
+            if [[ "$(wc -l < "${QUEUED_TASKS_FILENAME}")" -eq 0 ]]; then
+                echo $'Error! No task in queue. Please first start/push a task to the queue!' 1>&2
+                exit 2
+            fi
+
+            local -r taskFinderString="$2"
+            taskName="FINISHED: "
+            taskName+="$(checkOutQueuedTask "${QUEUED_TASKS_FILENAME}" "${START_TIME_QUEUED_TASKS}" "${taskFinderString}")"
+            optionalDescription="$3"
+            ;;
+        -q|--queue)
+            if [[ "$(wc -l < "${QUEUED_TASKS_FILENAME}")" -eq 0 ]]; then
+                echo 'No tasks in queue!' 1>&2
+                exit 0
+            fi
+
+            local timeOutputQueue
+            local queuedTaskFormatted
+
+            while read -r unixSeconds queuedTask
+            do
+                timeOutputQueue="[Elapsed Time: $(getElapsedTime "${unixSeconds}")]      "
+                echo -n "${timeOutputQueue}"
+                queuedTaskFormatted="$(limitStringWidthBlockify "${queuedTask}" $(( SEPERATOR_LENGTH - ${#timeOutputQueue}  )) )"
+                head -n 1 <<< "${queuedTaskFormatted}"
+                tail -n +2 <<< "${queuedTaskFormatted}" | sed -E "s/^/$(makeSeperator ' ' "${#timeOutputQueue}")/"
+                makeSeperator '-' "$(( SEPERATOR_LENGTH * 110 / 100))"
+            done < <(paste -d ' ' "${START_TIME_QUEUED_TASKS}" "${QUEUED_TASKS_FILENAME}") | bat
+            exit 0
+           ;;
+        -l)
+            local -r trackerNumber="${2:--1}" # by default show the last tracker file
+            local -r trackerFiles=("${OG_TRACKER_DIR}"/[^.]*) # expaned glob pattern in array, globs are sorted! https://unix.stackexchange.com/a/368507/579677
+
+            if [[ "${trackerNumber}" -ge "${#trackerFiles[@]}" || "${trackerNumber}" -lt -"${#trackerFiles[@]}" ]]; then
+            {
+                echo 'Out of bounds! Please choose a valid index!'
+                echo "Index range: -${#trackerFiles[@]} to $(("${#trackerFiles[@]}" - 1))"
+                echo 'Note: zero indexed.'
+                exit 3
+            } 1>&2
+            fi
+
+            bat "${trackerFiles["${trackerNumber}"]}"
+            exit 0
+            ;;
+        --help)
+            help
+            exit 0
+            ;;
+        --*|-*)
+            echo "$1 not an accepted argument!"
+            help
+            exit 0
+            ;;
+        *)
+            taskName="$1"
+            optionalDescription="$2"
+            ;;
+    esac
+
+    # every case option that does not exit will come here
+    echo "Task added!"
+    makeSeperator '_' "${SEPERATOR_LENGTH}"
+    generateTrackableEvent \
+        "${taskName}" \
+        "${optionalDescription}" \
+        "${SEPERATOR_LENGTH}" | tee -a "${todayTrackerFname}"
+    echo '' >> "${todayTrackerFname}" # I prefer how the speration looks between tasks
+}
+
+main "$@"

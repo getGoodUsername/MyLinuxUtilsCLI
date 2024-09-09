@@ -1,0 +1,45 @@
+#!/usr/bin/bash
+
+function prettyPrint()
+{
+    local -r defaultFont='mono12'
+    untrimmedText="$(toilet --font="${defaultFont}" "${1}")"
+    tail -n +2 <<< "${untrimmedText}" | head -n -3 # remove the last line with non blank now to replace with one without ending \n
+    tail -n 3 <<< "${untrimmedText}" | head -n 1 | tr -d '\n' # do this to make terminal window that program is running in as compact as possible
+}
+
+function main()
+{
+    local -r defaultFont='mono12'
+    local playBeepBool=true
+    case "$1" in
+        -q|--quite)
+            playBeepBool=false
+            shift 1 # next param shall be minutes timer shall go for
+            ;;
+    esac
+
+    local -r startMinutes=${1:-5}; # default is 5 min
+
+    clear
+    prettyPrint "${startMinutes}:00"
+    for min in $(seq $((startMinutes - 1)) -1 0)
+    do
+        for sec in {59..00}
+        do
+            sleep 1
+            clear
+            prettyPrint "${min}:${sec}"
+        done
+    done
+
+    sleep 1
+    clear
+    prettyPrint "DONE!"
+    echo '' # prettyPrint doesn't do new lines
+
+    echo "${startMinutes} mins elapsed!"
+    ${playBeepBool} && aplay -q /usr/share/sounds/GNUstep/Tink.wav
+}
+
+main "$@"

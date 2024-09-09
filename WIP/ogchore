@@ -1,0 +1,21 @@
+#!/usr/bin/python3
+# pyright: strict
+
+# offense = player to initiate/challenge chore game upon other player. this player can receive special privileges
+# defense = player avoid chore. Player will not receive special privileges
+
+
+def hello(num: int, thingy: list[int]):
+    """_summary_
+
+    Args:
+        num (int): _description_
+        thingy (list[int]): _description_
+    """
+    pass
+
+print('hello world!')
+
+a: int | None = None
+
+print(3 if a is not None else 5)
