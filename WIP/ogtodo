@@ -1,0 +1,23 @@
+#!/usr/bin/bash
+# Integrate with todo / task tracker system set up for obsidian, made by me.
+
+function getTaskAgeFiles
+{
+    # have to do basename of fullpath in sh -c since find will pass
+    # filename with "$dir"" in it, not the basename! Since running as
+    # execdir, will actually always be ./<name> but same principle applies!
+    local -r dir="$1"
+    find "$dir" \
+        -maxdepth 1 \
+        -regextype egrep -regex '^.*/[0-9]+\.md$' \
+        -execdir sh -c '
+            for fullpath in "$@"; do
+                filename="$(basename "$fullpath")"
+                search_str="ogtodo $filename"
+                head -n 1 "$filename" | grep -qF "$search_str"
+                if [ $? -eq 0 ]; then echo "$filename"; fi
+            done
+        ' isValidTaskAgeFile {} +
+}
+
+getTaskAgeFiles "$1"
