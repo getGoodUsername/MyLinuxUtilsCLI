@@ -21,8 +21,8 @@ function getSourceFilePath
     if ! [[  -e "$result" ]]; then
     {
         # shellcheck disable=SC2128
-        echo "Please change function $FUNCNAME in $(basename "$0") to reflect actual source path"
-        echo "Tried to get: $key -> Result: $result"
+        echo "ERROR: Please change function $FUNCNAME in $(basename "$0") to reflect actual source path"
+        echo "ERROR: Tried to get: $key -> Result: $result"
         exit 127;
     } 1>&2
     fi
@@ -38,7 +38,9 @@ function getFile
         ["og_hw_brightness_enabled"]="og_hardware_brightness_enabled"
         ["hw_brightness_tracker"]="hardware_brightness_tracker"
         ["og_hw_brightness_source_code"]="og_hardware_brightness_source_code.c"
+        ["og_hw_brightness_last_compiled_source_code"]="og_hardware_brightness_last_compiled_source_code.c"
         ["og_hw_brightness_exec"]="og_hardware_brightness"
+        ["min_visible_hw_brightness"]="min_visible_hw_brightness"
         # ["hw_brightness_ctl"]="hardware_brightness_controller"
         # ["max_hw_brightness"]="max_hardware_brightness"
 
@@ -47,7 +49,16 @@ function getFile
         ["sw_brightness_xrandr_verbose_cache"]="software_brightness_xrandr_cache"
     );
 
-    echo "${OG_DIM_DIR}/${file_names["${key}"]}"
+    local -r result="${file_names["${key}"]}";
+
+    # shellcheck disable=SC2128
+    if [[ -z "$result" ]]; then
+    {
+        echo "ERROR: $key not available in $FUNCNAME"
+        exit 126
+    } 1>&2
+    fi
+    echo "${OG_DIM_DIR}/$result"
 }
 
 function isOgdimRunningInValidEnv
@@ -58,25 +69,14 @@ function isOgdimRunningInValidEnv
     if [[ -z "$OG_DIM_DIR" ]]; then return 2; fi
 }
 
-function getUserInputFilePath
-{
-    local -r prompt="$1"
-    read -rp "$prompt" path
-
-    if ! [[ -e "$path" ]]; then
-        echo "Make sure file '$path' exists!!!!" 1>&2
-        return 1
-    fi
-
-    echo "$path"
-}
-
 function makeHardwareBrightnessExecutable
 {
     local -r exec_name="$(getFile og_hw_brightness_exec)"
     local -r source_name="$(getFile og_hw_brightness_source_code)"
+    local  brightness_ctl="\"$(getSourceFilePath hw_brightness_ctl)\"" # \" added to make sure compiler preprocessor variable is treated as a str in compilation
+    local
 
-    gcc -O2 -o "$exec_name" "$source_name"
+    gcc -D "HW_BRIGHTNESS_CTL_FNAME=$brightness_ctl" -D "HW_BRIGHTNESS_MAX_INT" -O2 -o "$exec_name" "$source_name"
     echo 'Need root privileges to setup og hardware brightness executable!'
     sudo chown root:root "$exec_name"
     sudo chmod 4555 "$exec_name"
@@ -87,16 +87,14 @@ function makeHardwareBrightnessExecutable
 function updateHardwareBrightnessExecutable
 {
     # if it ever gets more complicated, its time to use a makefile
-    local -r exec_name="$(getFile og_hw_brightness_exec)"
-    local -r source_name="$(getFile og_hw_brightness_source_code)"
-    local -ri source_code_modification_time="$(stat -L -c'%Y' "$source_name")"
-    local -ri exec_modification_time="$(stat -L -c'%Y' "$exec_name")"
-    # have file to check checksum of file, just incase file didn't even change
-    # and was just touched
+    local -r source_code="$(getFile og_hw_brightness_source_code)"
+    local -r prev_source_code="$(getFile og_hw_brightness_last_compiled_source_code)"
 
-    if ! [[ "$source_code_modification_time" -gt "$exec_modification_time" ]]; then return 0; fi
-    echo 'Message about needing to recompile og hardware brightness since source code changed'
+    if ! cmp -s "$prev_source_code" "$source_code"; then return 0; fi
+
+    echo 'Source code has been updated! Time to recompile og hardware brightness ;)'
     makeHardwareBrightnessExecutable
+    cp "$source_code" "$prev_source_code"
 }
 
 function isHardwareBrightnessEnabled
@@ -109,10 +107,7 @@ function initHardwareBrightness
     read -rp 'Enable hardware dimming? (must have software dimmable backlight) [y/n]: ' response
     if grep -q -v -i '^y' <<< "$response"; then return 0; fi
 
-    for key in 'hw_brightness_ctl' 'max_hw_brightness' 'og_hw_brightness_source_code'; do
-        ln -s "$(getSourceFilePath "$key")" "$(getFile "$key")"
-    done
-
+    ln -s "$(getSourceFilePath og_hw_brightness_source_code)" "$(getFile og_hw_brightness_source_code)"
     touch "$(getFile og_hw_brightness_enabled)" # if file exists, hw brightness change is enabled
 
     # og_hardware_brightness requires tracker file to be owned by root and have
@@ -139,7 +134,7 @@ function initSetup
         )
         local -ir error_index=$(( error_code - 1 ))
 
-        echo "${error_messages["$error_index"]}"
+        echo "ERROR: ${error_messages["$error_index"]}"
         exit 1
     } 1>&2
     fi
@@ -155,10 +150,7 @@ function runHardwareBrightness
 {
     local -ri hardware_brightness_value="$1"
     updateHardwareBrightnessExecutable
-    "$(getFile og_hw_brightness_exec)" "$hardware_brightness_value" \
-        "$(getFile hw_brightness_tracker)" \
-        "$(getFile hw_brightness_ctl)" \
-        "$(getFile max_hw_brightness)"
+    "$(getFile og_hw_brightness_exec)" "$hardware_brightness_value"
 }
 
 function isValidSoftwareBrightnessValue
@@ -177,10 +169,10 @@ function runSoftwareBrightness
 
     if ! isValidSoftwareBrightnessValue "$software_brightness_value"; then
     {
-        echo 'Invalid software brightness value!'
+        echo 'ERROR: Invalid software brightness value!'
         echo "Input: $software_brightness_value"
         echo "Accepted range: [0.1, 1.0]"
-        exit 1
+        exit 2
     } 1>&2
     fi
 }
