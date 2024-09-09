@@ -3,4 +3,3 @@ test.sh
 .vscode/
 .*.swp
 **/a.out
-ChangingArchitecture/**
