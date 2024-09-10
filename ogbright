@@ -1,15 +1,1 @@
-#!/usr/bin/bash
-
-# https://www.ddcutil.com/vcpinfo_output/
-function main
-{
-	local -r feature_code_brightness="0x10"
-	local user_brightness="$1"
-	for serial_number in $(ddcutil detect | grep '^[[:space:]]\+Serial number:' | tr -d ' ' | cut -d ':' -f 2- | sort -u); do
-		ddcutil --sn "$serial_number" setvcp "$feature_code_brightness" "$user_brightness" &
-	done
-	wait
-}
-
-# I don't want to see no error messages from ddcutil, it usually all works fine either way!
-main "$@" &> /dev/null &
+/home/spaceface102/Documents/MyLinuxUtilsCLI/WIP/ogbright
