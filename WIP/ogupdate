@@ -1,0 +1,70 @@
+#!/usr/bin/bash
+
+function main
+{
+    # ONLY ONE OPTION ALLOWED AT A TIME
+    local -r rootDir="${OG_UPDATE_DIR}";
+    local -r default_autoupdate_period_file="${rootDir}/default_autoupdate_period" # in seconds
+    local -r autoupdate_period_file="${rootDir}/autoupdate_period" # in seconds
+    local -r last_autoupdate_prompt_unix_time_file="${rootDir}/last_autoupdate_prompt_time"
+    local -r last_update_unix_time_file="${rootDir}/last_update_time" # seconds since 1970-01-01 00:00:00 UTC
+    local -r command_list_file="${rootDir}/command_list"
+    local -r logs_dir="${rootDir}/update_logs"
+
+    local -r autoupdate_daemon_dir="${rootDir}/autoupdate_daemon";
+    local -r daemon
+    case "$1" in
+        --get-default-autoupdate-period) cat "${default_autoupdate_period_file}" ;;
+        --get-autoupdate-period) cat "${autoupdate_period_file}" ;;
+        --get-last-autoupdate-prompt-time) cat "${last_autoupdate_prompt_unix_time_file}" ;;
+        --get-last-update-time) cat "${last_update_unix_time_file}" ;;
+        --get-command-list) cat "${command_list_file}" ;;
+        --set-default-autoupdate-period) echo "$2" > "${default_autoupdate_period_file}" ;;
+        --set-autoupdate-period) echo "$2" > "${autoupdate_period_file}" ;;
+        --set-last-autoupdate-prompt-time) echo "$2" > "${last_autoupdate_prompt_unix_time_file}" ;;
+        --set-last-update-time) echo "$2" > "${last_update_unix_time_file}" ;;
+        --set-command-list)
+            shift 1;
+            for command in "$@"; do
+                echo "${command}" > "${command_list_file}";
+            done
+            ;;
+        --install-ogupdate-env)
+            # set up og(auto)?update to be used. create all the files and set them up with default values.
+            ogupdate --set-default-autoupdate-period $(( 60 * 60 * 24 )) # everyday
+            ogupdate --set-autoupdate-period 0 # next update will happen immediately
+            ogupdate --set-last-autoupdate-prompt-time "$(date '%s')" # now unix time
+            ogupdate --set-last-update-time "$(date '%s')" # now unix time
+            ogupdate --set-command-list "sudo apt update" "sudo apt upgrade" "flatpak update" "cargo install-update -a"
+            mkdir -p "${logs_dir}"
+            ;;
+        --is-autoupdate-ready) # exit code of 0 if ready, exit code of 1 if not
+            local -ri now="$(date +'%s')"
+            local -ri last_autoupdate_prompt_time="$(ogupdate --get-last-autoupdate-prompt-time)"
+            local -ri time_since_last_autoupdate_prompt=$(( now - last_autoupdate_prompt_time ))
+            local -ri autoupdate_period="$(ogupdate --get-autoupdate-period)"
+
+            [[ time_since_last_autoupdate_prompt -ge autoupdate_period ]]
+            exit "$?"
+            ;;
+        --update)
+            local -r session_log_dir_name="$(date +'%m_%d_%Y__%H_%M')"
+
+            local -i i=0;
+            local log_file;
+            mkdir -p "${logs_dir}/${session_log_dir_name}"
+            while read -r command; do
+                (( i += 1 ));
+                log_file="${logs_dir}/${session_log_dir_name}/${i}.log"
+                echo "${command}" > "${log_file}"
+                eval "${command}" | tee "${log_file}"
+            done < "$(ogupdate --get-command-list)"
+            ;;
+        --run-autoupdate-daemon)
+            ;;
+        *)
+            echo 'Invalid option'
+            exit 1
+            ;;
+    esac
+}
