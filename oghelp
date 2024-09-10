@@ -1,9 +1,0 @@
-#!/usr/bin/bash
-
-user_arg1="$1"; shift 1;
-for help_option_str in "$@"; do
-	if [[ "$help_option_str" = "$user_arg1" ]]; then
-		cat <&0 # print whatever is piped into oghelp
-		exit	
-	fi
-done
