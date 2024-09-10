@@ -1,17 +1,11 @@
 #!/usr/bin/bash
 
-# usage: ogpasswordgen [-a, -all, --all-print] [password character length] [list additional special characters to randomly include, ex. '!&^%$']
-# ex: ogpasswordgen -a 15 (NOTE: will ignore any addiitonal special characters set)
-# ex: ogpasswrodgen 16 '!@#$%'
+password_len="${1:-$(shuf -i 14-28 -n 1)}"
+allowed_chars_tr='[:graph:]' 	# all printable chars except space
+unallowed_chars_tr="$2"			# if $2 is unset, unallowed_chars_tr='' aka nothing is unallowed
 
-charRange="a-zA-Z0-9$2"
-case "$1" in
-	-a|--all|--all-print)
-		charRange='[:print:]'
-		shift 1		
-		;;
-esac
-
-declare -r passLength=${1:-$(shuf -i 10-16 -n 1)}
-tr --complement --delete "${charRange}" < /dev/urandom | head --bytes="${passLength}"
-echo '' # just to have a newline at the end
+# LC_ALL=C set to ensure single byte chars, as recommened by the tr man page
+LC_ALL=C tr --complement --delete "$allowed_chars_tr" < /dev/urandom \
+	| tr --delete "$unallowed_chars_tr" \
+	| head --bytes="$password_len"
+printf '\n'
