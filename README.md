@@ -16,6 +16,7 @@
 	- Since it is dependent on X windows, ssh connections that don't forward X11 won't work as expected to copy to 'clipboard'
 		- Have to default to good old pipeling and redirecting or use a tool like tmux to copy the contents of the screen.
 	- Only works with X windowing systems. Sorry wayland.
+
 ## `ogpass`
 - generate a random password quickly
 - ##### Usage
@@ -34,6 +35,7 @@
 	- `ogpass` will NEVER print a 'space' character
 	- `ogpass` will ALWAYS output 1 byte characters
 	- remember, the set of unallowed chars goes directly into `tr` so you can use that set in creative ways! Read `man tr`
+
 ## `ogsshkey`
 - generate a safe ssh key quickly
 - ##### Usage
@@ -48,6 +50,7 @@
 	- Default KDF rounds = 100
 	- Default output key location = ~/.ssh
 	- Will make a new key that uses the `ed25519` algo
+
 ## `ograndwords`
 - generate a collection of random words, one word per line
 - ##### Usage
@@ -83,6 +86,15 @@
 - ##### Things to Note
 	- is dependent on [`librespot`](https://github.com/librespot-org/librespot)
 	- in order to get auth, launch script, open spotify client on phone and switch output to the new device. Auth will be received and script can now just run normally in the future.
+
+## `ogpaste`
+- `xclip` wrapper, just use default options for pasting
+- not much more than that, just wrapped into a bash script to make easy to edit and run. I don't feel like remembering all sorts of options
+- ##### Things to Note
+	- is dependent on `xclip`
+	- last new line will always be removed
+	- the output will always be piped to stdout
+
 ## ***WIP***`ogbright`
 - changes the brightness of most desktop monitors
 - ##### Usage

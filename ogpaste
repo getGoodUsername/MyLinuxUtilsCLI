@@ -1,0 +1,3 @@
+#!/usr/bin/bash
+
+xclip -out -rmlastnl -selection clipboard
