@@ -1,13 +1,25 @@
 #!/usr/bin/bash
 
-# !!!! STOLE FROM https://andrew-quinn.me/fzf/ !!!! #
-
-# script fuzzy searches every line in every file and
-# the file the line is in
+# script fuzzy searches every line in every file that
+# exists recursively relative from current directory, and
+# then tells you the file name the line is located in
 
 # Dependent of:
 # rg
 # fzf
 # cut
 
-rg . | fzf | cut -d ':' -f 1
+
+
+# !!!! IDEA STOLE FROM https://andrew-quinn.me/fzf/ !!!! #
+# small improvement to avoid searching file name with -n
+# and --delimiter
+# using bat to preview file, --preview-window to jump to line
+# config taken straigt from fzf man page
+
+
+rg --line-number . \
+	| fzf -n '3..-1' --delimiter=':' \
+		--preview='bat --style=full --color=always --highlight-line {2} {1}' \
+		--preview-window '~3,+{2}+3/2'
+	| cut -d ':' -f 1
