@@ -17,11 +17,11 @@
 # using bat to preview file, --preview-window to jump to line
 # config taken straigt from fzf man page
 
-path=${1:-${PWD}} # default is current dir
-max_depth=${2:--1} # default is -1 aka unbounded
+max_depth=${1:--1} # default is -1 aka unbounded
+path=${2:-${PWD}} # default is current dir
 
 {
-	if [[ ${max_depth} -eq -1 ]]; then
+	if [[ ${max_depth} -lt 0 ]]; then
 		rg --line-number -e '.' "${path}"
 	else
 		rg --line-number --max-depth="${max_depth}" -e '.' "${path}"
