@@ -17,9 +17,17 @@
 # using bat to preview file, --preview-window to jump to line
 # config taken straigt from fzf man page
 
+path=${1:-${PWD}} # default is current dir
+max_depth=${2:--1} # default is -1 aka unbounded
 
-rg --line-number . \
-	| fzf -n '3..-1' --delimiter=':' \
-		--preview='bat --style=full --color=always --highlight-line {2} {1}' \
-		--preview-window '~3,+{2}+3/2' \
-	| cut -d ':' -f 1
+{
+	if [[ ${max_depth} -eq -1 ]]; then
+		rg --line-number -e '.' "${path}"
+	else
+		rg --line-number --max-depth="${max_depth}" -e '.' "${path}"
+	fi
+} \
+| fzf -n '3..-1' --delimiter=':' \
+	--preview='bat --style=full --color=always --highlight-line {2} {1}' \
+	--preview-window 'up,85%,~3,+{2}+3/2' \
+| cut -d ':' -f 1
