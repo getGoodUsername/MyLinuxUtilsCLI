@@ -21,5 +21,5 @@
 rg --line-number . \
 	| fzf -n '3..-1' --delimiter=':' \
 		--preview='bat --style=full --color=always --highlight-line {2} {1}' \
-		--preview-window '~3,+{2}+3/2'
+		--preview-window '~3,+{2}+3/2' \
 	| cut -d ':' -f 1
