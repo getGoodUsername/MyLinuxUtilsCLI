@@ -1,0 +1,13 @@
+#!/usr/bin/bash
+
+# !!!! STOLE FROM https://andrew-quinn.me/fzf/ !!!! #
+
+# script fuzzy searches every line in every file and
+# the file the line is in
+
+# Dependent of:
+# rg
+# fzf
+# cut
+
+rg . | fzf | cut -d ':' -f 1
