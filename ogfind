@@ -4,7 +4,7 @@
 # exists recursively relative from current directory, and
 # then tells you the file name the line is located in
 
-# Dependent of:
+# Dependent on:
 # rg
 # fzf
 # cut
@@ -20,11 +20,12 @@
 max_depth=${1:--1} # default is -1 aka unbounded
 path=${2:-${PWD}} # default is current dir
 
+cd "${path}" # makes file name output from rg shorter and prettier
 {
 	if [[ ${max_depth} -lt 0 ]]; then
-		rg --line-number -e '.' "${path}"
+		rg --line-number -e '.' 
 	else
-		rg --line-number --max-depth="${max_depth}" -e '.' "${path}"
+		rg --line-number --max-depth="${max_depth}" -e '.'
 	fi
 } \
 | fzf --with-nth='3..-1' --delimiter=':' \
