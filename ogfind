@@ -27,7 +27,7 @@ path=${2:-${PWD}} # default is current dir
 		rg --line-number --max-depth="${max_depth}" -e '.' "${path}"
 	fi
 } \
-| fzf -n '3..-1' --delimiter=':' \
+| fzf --with-nth='3..-1' --delimiter=':' \
 	--preview='bat --style=full --color=always --highlight-line {2} {1}' \
 	--preview-window 'up,85%,~3,+{2}+3/2' \
 | cut -d ':' -f 1
