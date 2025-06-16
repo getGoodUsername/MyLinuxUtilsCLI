@@ -2,7 +2,6 @@
 librespot \
 	--name "librespot-$(hostname)" \
 	--bitrate 320 \
-	--autoplay \
 	--device-type 'speaker' \
 	--cache "${HOME}/.og.d/Librespot" \
 	--cache-size-limit '32G' \
