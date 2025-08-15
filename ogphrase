@@ -6,7 +6,8 @@ wordsFile=/usr/share/dict/words
 numWordsInPhrase=${1:-$(shuf -i 2-6 -n 1)}
 wordSeperator=${2:-'-'}
 
-shuf -n ${numWordsInPhrase} ${wordsFile} |
+shuf -n "${numWordsInPhrase}" "${wordsFile}" |
+	iconv -f utf8 -t ascii//TRANSLIT | # remove diacritics from letter like é
 	sed -E $'s/^(.*)\'s$/\\1/' | # remove "'s" from the end of words
 	tr '[:upper:]' '[:lower:]' |
 	paste -s -d "${wordSeperator}"
