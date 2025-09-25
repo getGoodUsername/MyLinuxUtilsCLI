@@ -1,0 +1,131 @@
+#!/usr/bin/bash
+# shellcheck disable=SC2155
+
+set -o errexit
+declare -r  NETWORK='192.168.42.0'
+declare -ri NET_PREFIX='24'
+
+declare -r  BRIDGE_NAME='ogbr'
+declare -r  IP_BRIDGE="${NETWORK/.0/.254}"
+
+declare -r  EXTERAL_IF_NAME="$(ip -j route | jq -r '.[] | select(.dst == "default") | .dev')"
+
+declare -r  NAT_RULE="POSTROUTING -s ${NETWORK}/${NET_PREFIX} -o ${EXTERAL_IF_NAME} -j MASQUERADE"
+
+declare -r  NS_NAME_PREFIX='ogns'
+function fnGetPrevVirtNetNum {
+    { echo "${NS_NAME_PREFIX}0"; ip netns list; } \
+        | awk '{ print $1 }' \
+        | sed "s/${NS_NAME_PREFIX}//" \
+        | sort -n \
+        | tail -n 1
+}
+declare -ri OG_VIRT_NET_COUNT="$(fnGetPrevVirtNetNum)"
+declare -ri NEW_VIRT_NET_COUNT=$(( OG_VIRT_NET_COUNT + 1))
+
+declare -r  NEW_NS_NAME="${NS_NAME_PREFIX}${NEW_VIRT_NET_COUNT}"
+declare -r  VETH_NAME_PREFIX='ogveth'
+declare -r  VETH_TO_BRIDGE_NAME="${VETH_NAME_PREFIX}${NEW_VIRT_NET_COUNT}"
+declare -r  VETH_IN_NS_NAME="${VETH_NAME_PREFIX}_${NEW_VIRT_NET_COUNT}"
+declare -r  IP_VETH_IN_NS="${NETWORK/.0/".${NEW_VIRT_NET_COUNT}"}"
+
+
+
+function fnIsBridgeMade {
+    local -r jq_cmd='.[] | select(.ifname == "'"${BRIDGE_NAME}"'")'
+
+    # shellcheck disable=SC2312
+    ip -j link show type bridge | jq -e "${jq_cmd}" >/dev/null
+    return $?
+}
+
+function fnMakeBridge {
+    echo "Creating bridge device: ${BRIDGE_NAME}"
+
+    ip link add name "${BRIDGE_NAME}" type bridge
+    ip link set "${BRIDGE_NAME}" up
+    ip address add "${IP_BRIDGE}/${NET_PREFIX}" dev "${BRIDGE_NAME}"
+}
+
+function fnIsNATSet {
+    # shellcheck disable=SC2312
+    iptables -t nat -S | grep -q -- "-A ${NAT_RULE}"
+
+    return $?
+}
+
+function fnSetNAT {
+    echo "Enabling ipv4 NAT"
+    echo "Setting NAT rule: iptables -t nat -A ${NAT_RULE}"
+
+    echo 1 > /proc/sys/net/ipv4/ip_forward
+    #shellcheck disable=SC2086
+    iptables -t nat -A ${NAT_RULE}
+}
+
+function fnInit {
+
+    # shellcheck disable=SC2312
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "Must run $0 as root!" 1>&2
+        exit 1
+    fi
+
+    # shellcheck disable=SC2310
+    if ! fnIsBridgeMade; then
+        fnMakeBridge
+    fi
+
+    # shellcheck disable=SC2310
+    if ! fnIsNATSet; then
+        fnSetNAT
+    fi
+}
+
+function fnMain {
+    fnInit
+
+    echo "Making new network namespace: ${NEW_NS_NAME}"
+    ip netns add "${NEW_NS_NAME}"
+    ip link add "${VETH_TO_BRIDGE_NAME}" type veth peer name "${VETH_IN_NS_NAME}" netns "${NEW_NS_NAME}"
+
+    echo "Connecting veth to bridge: ${VETH_TO_BRIDGE_NAME} -> ${BRIDGE_NAME}"
+    ip link set "${VETH_TO_BRIDGE_NAME}" master "${BRIDGE_NAME}"
+    ip link set "${VETH_TO_BRIDGE_NAME}" up
+
+    echo "Setting up veth in namespace: ${VETH_IN_NS_NAME}"
+    echo "Setting IP of ${VETH_IN_NS_NAME}: ${IP_VETH_IN_NS}/${NET_PREFIX}"
+    ip netns exec "${NEW_NS_NAME}" ip link set lo up
+    ip netns exec "${NEW_NS_NAME}" ip link set "${VETH_IN_NS_NAME}" up
+    ip netns exec "${NEW_NS_NAME}" ip address add "${IP_VETH_IN_NS}/${NET_PREFIX}" dev "${VETH_IN_NS_NAME}"
+    ip netns exec "${NEW_NS_NAME}" ip route add default via "${IP_BRIDGE}"
+
+    echo "Setting up DNS for namespace ${NEW_NS_NAME}"
+    mkdir -p /etc/netns/"${NEW_NS_NAME}"
+    echo 'nameserver 1.1.1.1' > /etc/netns/"${NEW_NS_NAME}"/resolv.conf
+
+    echo 'Making cleanup script'
+    # shellcheck disable=SC2155
+    declare -r fname_cleanup="$(mktemp)"
+    {
+        printf '#!/usr/bin/bash\n\n'
+
+        printf 'set -o errexit\n'
+        printf 'ip netns pids %s | xargs --no-run-if-empty kill\n' "${NEW_NS_NAME}"
+        printf 'ip netns delete %s\n' "${NEW_NS_NAME}"
+    } > "${fname_cleanup}"
+
+    # shellcheck disable=SC2154
+    chown "${SUDO_USER}" "${fname_cleanup}"
+    chmod 775 "${fname_cleanup}"
+    echo "Run reset/clean script as root to close network namespace ${NEW_NS_NAME}: ${fname_cleanup}"
+    echo 'Lost previous cleanup file? Run: rg --files-with-matches ogns /tmp 2>/dev/null'
+
+    printf '\n============================== DONE! ==============================\n' 
+    echo "Run a program in the '${NEW_NS_NAME}' namepsace by running:" 
+    echo "sudo ip netns exec ${NEW_NS_NAME} <your bin>" 
+    echo "Ex launch a shell: sudo ip netns exec ${NEW_NS_NAME} bash"
+}
+
+
+fnMain
