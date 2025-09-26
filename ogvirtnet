@@ -1,6 +1,9 @@
 #!/usr/bin/bash
 # shellcheck disable=SC2155
 
+# TODO: fnGetPrevVirtNetNum use grep to filter non og namespaces
+# TODO: clean up script delete itself after being used
+
 set -o errexit
 declare -r  NETWORK='192.168.42.0'
 declare -ri NET_PREFIX='24'
