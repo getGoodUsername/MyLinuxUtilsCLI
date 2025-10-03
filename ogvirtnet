@@ -128,6 +128,12 @@ function fnMain {
     echo "Run a program in the '${NEW_NS_NAME}' namepsace by running:" 
     echo "sudo ip netns exec ${NEW_NS_NAME} <your bin>" 
     echo "Ex launch a shell: sudo ip netns exec ${NEW_NS_NAME} bash"
+	printf '\nBEST PRACTICE:\n'
+	echo 'The above ways to run the commands will run them as root!!!! THE HORROR!!!!'
+	echo 'Run commands as a specific NON ROOT user to be safe'
+	echo "sudo ip netns exec ${NEW_NS_NAME} sudo -u <username> <your executable binary>"
+	echo 'Example:'
+	echo "sudo ip netns exec ${NEW_NS_NAME} sudo -u ${SUDO_USER} wireshark 2>/dev/null &"
 }
 
 
