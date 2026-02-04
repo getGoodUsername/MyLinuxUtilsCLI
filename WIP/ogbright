@@ -1,12 +1,23 @@
 #!/usr/bin/bash
 
+function fnGetEDID
+{
+	# using EDID instead of serial number since some displays DON'T have serial numbers!
+	# `jc` converts xrandr output to JSON!!!
+	# only using the first 256 hex characters because there are sometimes extensions to EDID that
+	#	ddcutil does not use and will reject.
+	xrandr --prop \
+		| jc --xrandr \
+		| jq -r '.screens[].devices[].props.EDID | select(. != null) | join("") | .[:256]'
+}
+
 # https://www.ddcutil.com/vcpinfo_output/
 function main
 {
 	local -r feature_code_brightness="0x10"
 	local user_brightness="$1"
-	for serial_number in $(ddcutil detect | grep '^[[:space:]]\+Serial number:' | tr -d ' ' | cut -d ':' -f 2- | sort -u); do
-		ddcutil --sn "$serial_number" setvcp "$feature_code_brightness" "$user_brightness" &
+	for edid in $(fnGetEDID); do
+		ddcutil --edid "$edid" setvcp "$feature_code_brightness" "$user_brightness"
 	done
 	wait
 }
