@@ -1,25 +1,13 @@
 #!/usr/bin/bash
 
-function fnGetEDID
-{
-	# using EDID instead of serial number since some displays DON'T have serial numbers!
-	# `jc` converts xrandr output to JSON!!!
-	# only using the first 256 hex characters because there are sometimes extensions to EDID that
-	#	ddcutil does not use and will reject.
-	xrandr --prop \
-		| jc --xrandr \
-		| jq -r '.screens[].devices[].props.EDID | select(. != null) | join("") | .[:256]'
-}
-
 # https://www.ddcutil.com/vcpinfo_output/
 function main
 {
-	local -r feature_code_brightness="0x10"
+	local -r brightness_feature_code="0x10"
 	local user_brightness="$1"
-	for edid in $(fnGetEDID); do
-		ddcutil --edid "$edid" setvcp "$feature_code_brightness" "$user_brightness"
+	for bus_number in $(ddcutil detect | awk '/I2C bus:/{print $NF}' | grep -o '[[:digit:]]\+$'); do
+		ddcutil --bus "${bus_number}" setvcp "$brightness_feature_code" "$user_brightness"
 	done
-	wait
 }
 
 # I don't want to see no error messages from ddcutil, it usually all works fine either way!
