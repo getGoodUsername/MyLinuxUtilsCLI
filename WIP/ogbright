@@ -1,14 +1,98 @@
 #!/usr/bin/bash
 
+declare -r CACHE_DIR="${XDG_RUNTIME_DIR:-/tmp}/ogbright"
+declare -r CACHE_FILE="${CACHE_DIR}/ddcutil_monitor_bus_number_cache"
+
+if ! command -v ddcutil &> /dev/null; then
+	notify-send "ogbright Error: ddcutil is not installed."
+	exit 1
+fi
+
+function get_bus_numbers
+{
+    if [[ -f "${CACHE_FILE}" ]]; then
+        cat "${CACHE_FILE}"
+        return 0
+    fi
+
+    mkdir -p "${CACHE_DIR}"
+    local detected_buses
+
+	# shellcheck disable=SC2312
+    detected_buses=$(ddcutil detect --brief | awk '/I2C bus:/{print $NF}' | grep -o '[[:digit:]]\+$')
+    if [[ -n "${detected_buses}" ]]; then
+		echo "New bus cache file created! ${CACHE_FILE}" >&2
+        echo "${detected_buses}" > "${CACHE_FILE}"
+        echo "${detected_buses}"
+    else
+		notify-send "ogbright: No DDC/CI compatible displays detected."
+        exit 2
+    fi
+}
+
+
 # https://www.ddcutil.com/vcpinfo_output/
 function main
 {
-	local -r brightness_feature_code="0x10"
-	local user_brightness="$1"
-	for bus_number in $(ddcutil detect | awk '/I2C bus:/{print $NF}' | grep -o '[[:digit:]]\+$'); do
-		ddcutil --bus "${bus_number}" setvcp "$brightness_feature_code" "$user_brightness"
+	### Avoid overwhelming ddcutil by running a brightness change at a time.
+	# open fd 84 as read only to avoid overwriting yourself (the script file) 😂
+	exec 84<"${BASH_SOURCE[0]}";
+	# grab a lock, if it is already grabbed by another process wait up till 300
+	# seconds before just quitting. If the lock gets freed, flock will let the
+	# next process in the queue continue with the rest of the script
+	flock --timeout 300 84 || { echo "Timed out waiting for lock!"; exit 3; }
+
+
+	local -r brightness_feature_code="0x10";
+	local -r user_input="$1";
+	local ddc_args=("${brightness_feature_code}");
+	local -i user_brightness;
+
+
+	if [[ "${user_input}" =~ ^[+-] ]]; then
+		ddc_args+=("${user_input:0:1}");
+		user_brightness="${user_input:1}";
+	else
+		user_brightness="${user_input}";
+	fi
+	# can't be less than zero since initial check of ^([+-]?)[0-9]{1,3}$ before running main
+	if [[ ${user_brightness} -gt 100 ]]; then
+		user_brightness=100;
+	fi
+	ddc_args+=("${user_brightness}");
+
+
+	local -i is_cache_dirty=0;
+	for bus_number in $(get_bus_numbers); do
+		if ! ddcutil --bus "${bus_number}" setvcp "${ddc_args[@]}"; then
+			echo "Warning! Failed to communicate with monitor on bus ${bus_number}." >&2
+			is_cache_dirty=1;
+		fi
 	done
+
+	if [[ "${is_cache_dirty}" -eq 1 ]]; then
+		rm -f "${CACHE_FILE}"
+		echo "Cache was invalidated by ddcutil error! Cache cleared." >&2
+		exit 4
+	fi
 }
 
-# I don't want to see no error messages from ddcutil, it usually all works fine either way!
-main "$@" &> /dev/null &
+if [[ "$1" == "--force-clear-cache" || "$1" == "-c" ]]; then
+	rm -f "${CACHE_FILE}"
+	echo "Cache cleared." >&2
+
+	if [[ $# -eq 1 ]]; then
+		exit 0;
+	else
+		shift 1 # arg $2 is now $1
+	fi
+fi
+
+if [[ "$1" =~ ^([+-]?)[0-9]{1,3}$ ]]; then
+	main "$@"
+else
+	echo "Error: input must be formatted as ^([+-]?)[0-9]{1,3}$" >&2;
+	echo "Usage: $0 [brightness] OR $0 [+|-][brightness_offset] OR $0 [-c|--force-clear-cache] [value]" >&2;
+	echo "TIP: clear the cache if you have made any changes to the amount or kind of monitors connected!" >&2;
+	exit 3;
+fi
