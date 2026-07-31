@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# -------------------------------------------------------------------------
+# DEPENDENCY & ARGUMENT CHECK
+# -------------------------------------------------------------------------
+for cmd in tar zstd gpg ogpaste; do
+    if ! command -v "$cmd" &> /dev/null; then
+        echo "Error: Required command '$cmd' is not installed." >&2
+        exit 1
+    fi
+done
+
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+    echo "Usage: $0 <encrypted_archive.tar.zst.gpg> [optional_destination_dir]" >&2
+    exit 1
+fi
+
+declare -r encrypted_file="$1"
+declare -r dest_dir="${2:-.}" 
+
+if [ ! -f "${encrypted_file}" ]; then
+    echo "Error: Encrypted file '${encrypted_file}' does not exist." >&2
+    exit 1
+fi
+
+mkdir -p "${dest_dir}"
+
+echo "Reading password from clipboard and unpacking..."
+
+gpg -d \
+    --batch \
+    --quiet \
+    --no-symkey-cache \
+    --passphrase-fd 3 \
+    "${encrypted_file}" 3< <(ogpaste | tr -d '\r\n') | \
+    tar -I 'zstd -T0' -C "${dest_dir}" -xf -
+
+echo "Success! Archive extracted safely to '${dest_dir}'."

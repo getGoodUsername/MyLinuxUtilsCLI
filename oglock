@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# -------------------------------------------------------------------------
+# DEPENDENCY & ARGUMENT CHECK
+# -------------------------------------------------------------------------
+for cmd in tar zstd gpg ogpass ogcopy realpath; do
+    if ! command -v "$cmd" &> /dev/null; then
+        echo "Error: Required command '$cmd' is not installed." >&2
+        exit 1
+    fi
+done
+
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <input_file_or_folder> <output_archive_name>" >&2
+    exit 1
+fi
+
+declare -r input_target="$1"
+declare -r output_file="$2.tar.zst.gpg"
+
+if [ ! -e "${input_target}" ]; then
+    echo "Error: Input target '${input_target}' does not exist." >&2
+    exit 1
+fi
+
+if [ -e "${output_file}" ]; then
+    echo "Error: Output file '${output_file}' already exists." >&2
+    exit 1
+fi
+
+# Clean up partial output file if script fails/exits early
+trap 'rm -f "${output_file}"' ERR INT
+
+# Extract normalized paths cleanly
+declare -r full_path="$(realpath "${input_target}")"
+declare -r target_dir="$(dirname "${full_path}")"
+declare -r target_name="$(basename "${full_path}")"
+
+echo "Generating secure password..."
+declare -r password="$(ogpass 255 | tr -d '\r\n')"
+
+echo "Compressing and encrypting (This may take a while)..."
+tar -I 'zstd -T0' -C "${target_dir}" -cf - "${target_name}" | \
+    gpg -c \
+        --cipher-algo AES256 \
+        --batch \
+        --quiet \
+        --no-symkey-cache \
+        --s2k-digest-algo SHA512 \
+        --s2k-count 65011712 \
+        --passphrase-fd 3 \
+        -o "${output_file}" 3< <(printf "%s" "$password")
+
+echo "Compression complete."
+echo "Copying password to your clipboard..."
+printf "%s" "$password" | ogcopy -s
+
+echo "Success! Encrypted file created at: ${output_file}"
